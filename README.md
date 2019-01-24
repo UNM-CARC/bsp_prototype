@@ -15,3 +15,4 @@ data is generated and written locally to a directory in the local file system.
 Submits a batch job for 4 nodes, (default), to run data_gen.py, which then in turn runs gather.sh after
 completion of multiple app_gen runs using mpi.
 
+
