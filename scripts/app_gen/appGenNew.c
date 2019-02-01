@@ -319,13 +319,14 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
       experimentID[i] = str[(rand() % 16)];
       srand(rand());
     }
+    experimentID[i] = 0;
   }
   MPI_Bcast(&experimentID,
      sizeof(experimentID),
                  MPI_CHAR,
                      root,
            MPI_COMM_WORLD);
-           
+
   app_end_time   = 1000000000 * MPI_Wtime();
   app_start_time = 1000000000 * app_start_time;
   fprintf(f_time, "%s,", experimentID);
