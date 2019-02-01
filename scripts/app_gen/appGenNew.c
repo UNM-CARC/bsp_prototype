@@ -336,12 +336,14 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
   fprintf(f_time, "%s,", distribution);
   fprintf(f_time, "%f,", a);
   fprintf(f_time, "%f,", b);
-  fprintf(f_time, "%u,", iterations);
+  fprintf(f_time, "%u", iterations);
+  printf("%lu", (unsigned long) (app_end_time - app_start_time));
 #ifdef USE_METRICS
+  fprintf(f_time, ",");
   for (i = 0; i < iterations; i++) {
     fprintf(f_time, "%lu,%lu",
-    times_buffer[i].start    ,
-    times_buffer[i].end       );
+        times_buffer[i].start,
+        times_buffer[i].end);
   }
   fprintf(f_time, "\n");
 #else

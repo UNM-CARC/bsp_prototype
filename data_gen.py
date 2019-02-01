@@ -10,8 +10,8 @@ import sys
 def buildArgs(distribution, interMean, interStdDev, iterations, nodes):
     #DISTRIBUTION = ["gaussian","exponential","flat","pareto","constant"]
     MPI     = ["mpirun", "-np"]
-    HOME    = os.environ['HOME']
-    CODE    = HOME  + "/Hacking/cdse/pipelines/data_generator/run/bsp_prototype/scripts/app_gen"
+    DIR     = dir_path = os.path.dirname(os.path.realpath(__file__))
+    CODE    = DIR + "/scripts/app_gen"
     PROGRAM = [CODE + "/app_gen_metrics"]
     TMP     = ["/tmp/results"]
     args    = MPI
@@ -24,11 +24,10 @@ def buildArgs(distribution, interMean, interStdDev, iterations, nodes):
     return args
 
 def mvTmp():
-    HOME = os.environ["HOME"]
-    CDSE = HOME + "/Hacking/cdse/pipelines/data_generator/run/bsp_prototype"
+    DIR  = dir_path = os.path.dirname(os.path.realpath(__file__))
     try:
-        print(CDSE + "/gather.sh")
-        sp.check_call([CDSE + "/gather.sh"])
+        print(DIR + "/gather.sh")
+        sp.check_call([DIR + "/gather.sh"])
     except sp.CalledProcessError:
         pass # handle errors in the called executable
     except OSError:
