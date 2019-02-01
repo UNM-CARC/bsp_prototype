@@ -11,9 +11,8 @@ def buildArgs(distribution, interMean, interStdDev, iterations, nodes):
     #DISTRIBUTION = ["gaussian","exponential","flat","pareto","constant"]
     MPI     = ["mpirun", "-np"]
     HOME    = os.environ['HOME']
-    CODE    = HOME  + "/cdse2018/data/scripts/app_gen"
-    RESULTS = [HOME + "/cdse2018/data/results"]
-    PROGRAM = [CODE + "/app_gen"]
+    CODE    = HOME  + "/Hacking/cdse/pipelines/data_generator/run/bsp_prototype/scripts/app_gen"
+    PROGRAM = [CODE + "/app_gen_metrics"]
     TMP     = ["/tmp/results"]
     args    = MPI
     args   += [str(nodes)]
@@ -26,7 +25,7 @@ def buildArgs(distribution, interMean, interStdDev, iterations, nodes):
 
 def mvTmp():
     HOME = os.environ["HOME"]
-    CDSE = HOME + "/cdse2018/data"
+    CDSE = HOME + "/Hacking/cdse/pipelines/data_generator/run/bsp_prototype"
     try:
         print(CDSE + "/gather.sh")
         sp.check_call([CDSE + "/gather.sh"])
@@ -51,7 +50,7 @@ def runProgram(nodes):
                 program = buildArgs(DISTRIBUTION[dist], MEAN[imean], STDDEV[istdd], ITERATIONS, nodes)
                 #print(program)
                 data[dist][imean][istdd] = sp.check_output(program)
-                print(data[dist][imean][istdd])
+                #print(data[dist][imean][istdd])
     #mvTmp()
 def is_intstring(s):
     try:
@@ -62,7 +61,7 @@ def is_intstring(s):
 
 
 def main(argv):
-    MAX_NODES = 16
+    MAX_NODES = 32
     nodes     = 1
     for arg in sys.argv[1:]:
         if not is_intstring(arg):
