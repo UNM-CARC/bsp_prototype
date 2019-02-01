@@ -140,35 +140,8 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
     srand(rand());
   }
   out[i] = 0;
-  //printf("%s\n", out);
   strcat(tmpfile, out);
   strcat(tmpfile, ".csv");
-  /*
-  strcat(tmpfile, distribution);
-  st = {0};
-
-  if (stat(tmpfile, &st) == -1) {
-    mkdir(tmpfile, 0700);
-  }
-  strcat(tmpfile, "/");
-  strcat(tmpfile, "mean_");
-  sprintf(tmpbuff, "%.0f", a);
-  strcat(tmpfile, tmpbuff);
-  strcat(tmpfile, "_");
-  strcat(tmpfile, "stddev_");
-  sprintf(TMPBUFF, "%.0f", b);
-  strcat(tmpfile, tmpbuff);
-  strcat(tmpfile, "_");
-  strcat(tmpfile, "iterations_");
-  sprintf(tmpbuff, "%.0f", iterations);
-  strcat(tmpfile, tmpbuff);
-  strcat(tmpfile, "time_ns");
-  f_time = fopen(tmpfile, "a");
-  */
-  //printf("PATH = %s\n", tmpfile);
-
-  //printf("Failed to open tmp file\n");
-  //f_time = fopen("result_time_ns", "a");
 
   f_time = fopen(tmpfile, "a");
   double inter_time = 0;
@@ -341,7 +314,7 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
 #ifdef USE_METRICS
   fprintf(f_time, ",");
   for (i = 0; i < iterations; i++) {
-    fprintf(f_time, "%lu,%lu",
+    fprintf(f_time, "%lu,%lu,",
         times_buffer[i].start,
         times_buffer[i].end);
   }
