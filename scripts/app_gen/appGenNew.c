@@ -243,7 +243,7 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
      * rdtsc + busy-waiting delay approach
      * otherwise use usleep()
      */
-
+// SLEEP START TODO
     if (inter_time > 0){
 
       if (inter_time < 1000)
@@ -300,26 +300,32 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
                      root,
            MPI_COMM_WORLD);
 
-  app_end_time   = 1000000000 * MPI_Wtime();
-  app_start_time = 1000000000 * app_start_time;
-  fprintf(f_time, "%s,", experimentID);
-  fprintf(f_time, "%d,", rank);
-  fprintf(f_time, "%lu,",
-         (unsigned long) (app_end_time - app_start_time) );
-  fprintf(f_time, "%s,", distribution);
-  fprintf(f_time, "%f,", a);
-  fprintf(f_time, "%f,", b);
-  fprintf(f_time, "%u", iterations);
-  printf("%lu", (unsigned long) (app_end_time - app_start_time));
+
+
 #ifdef USE_METRICS
-  fprintf(f_time, ",");
   for (i = 0; i < iterations; i++) {
-    fprintf(f_time, "%lu,%lu,",
+    app_end_time   = 1000000000 * MPI_Wtime();
+    app_start_time = 1000000000 * app_start_time;
+    fprintf(f_time, "%s,", experimentID);
+    fprintf(f_time, "%d,", rank);
+    fprintf(f_time, "%lu,",
+           (unsigned long) (app_end_time - app_start_time) );
+    fprintf(f_time, "%s,", distribution);
+    fprintf(f_time, "%f,", a);
+    fprintf(f_time, "%f,", b);
+    fprintf(f_time, "%u,", iterations);
+    fprintf(f_time, "%lu,%lu",
         times_buffer[i].start,
         times_buffer[i].end);
+    fprintf(f_time, "\n");
   }
   fprintf(f_time, "\n");
+  printf("%lu", (unsigned long) (app_end_time - app_start_time));
 #else
+  app_end_time   = 1000000000 * MPI_Wtime();
+  app_start_time = 1000000000 * app_start_time;
+  fprintf(f_time, "%lu,",
+         (unsigned long) (app_end_time - app_start_time) );
   fprintf(f_time, "\n");
 #endif
       //char[1024]
