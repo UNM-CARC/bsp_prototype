@@ -1,0 +1,7 @@
+SUBDIRS = SRC lib check TESTS EXAMPLES include .
+
+ACLOCAL_AMFLAGS = -I ./m4
+
+.NOTPARALLEL:
+
+
