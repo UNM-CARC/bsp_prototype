@@ -303,13 +303,14 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
 
 
 #ifdef USE_METRICS
-  for (i = 0; i < iterations; i++) {
     app_end_time   = 1000000000 * MPI_Wtime();
     app_start_time = 1000000000 * app_start_time;
+    unsigned long final = (unsigned long) (app_end_time - app_start_time);
+  for (i = 0; i < iterations; i++) {
+
     fprintf(f_time, "%s,", experimentID);
     fprintf(f_time, "%d,", rank);
-    fprintf(f_time, "%lu,",
-           (unsigned long) (app_end_time - app_start_time) );
+    fprintf(f_time, "%lu,", final);
     fprintf(f_time, "%s,", distribution);
     fprintf(f_time, "%f,", a);
     fprintf(f_time, "%f,", b);
@@ -320,7 +321,6 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
     fprintf(f_time, "\n");
   }
   fprintf(f_time, "\n");
-  printf("%lu", (unsigned long) (app_end_time - app_start_time));
 #else
   app_end_time   = 1000000000 * MPI_Wtime();
   app_start_time = 1000000000 * app_start_time;
@@ -328,6 +328,7 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
          (unsigned long) (app_end_time - app_start_time) );
   fprintf(f_time, "\n");
 #endif
+  printf("%lu", (unsigned long) (app_end_time - app_start_time));
       //char[1024]
 //    }
   free(r);
