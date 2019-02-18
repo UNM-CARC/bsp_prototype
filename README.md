@@ -1,6 +1,6 @@
 # Prototype Data Collection
 
-## data_gen.py
+## data\_gen.py
 
 **data_gen.py**, implements a simple algorithm for running the application originally written by Oscar
 Mondragon.
@@ -12,7 +12,15 @@ data is generated and written locally to a directory in the local file system.
 
 ## simple.pbs
 
-Submits a batch job for 4 nodes, (default), to run data_gen.py, which then in turn runs gather.sh after
-completion of multiple app_gen runs using mpi.
+Submits a batch job for 4 nodes, (default), to run data\_gen.py, which then in turn runs gather.sh after
+completion of multiple app\_gen runs using mpi.
 
+## sprng5
 
+### If SPRNG 5 is not already installed on the local system, you may install it by the following command:
+
+cd sprng5 && source installSprng
+
+### To remove local installation:
+
+cd sprng5 && source removeSprng
