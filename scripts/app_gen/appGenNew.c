@@ -42,6 +42,7 @@ struct coll_time{
   int rank;
   unsigned long start;
   unsigned long end;
+  unsigned long sleep;
 };
 
 
@@ -100,6 +101,7 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
 
   double coll_start = 0.0;
   double coll_end = 0.0;
+  double coll_sleep = 0.0;
 
   double rank_start_time = 0.0;
   double rank_end_time = 0.0;
@@ -244,6 +246,9 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
      * otherwise use usleep()
      */
 // SLEEP START TODO
+#ifdef USE_METRICS
+    coll_sleep = MPI_Wtime();
+#endif
     if (inter_time > 0){
 
       if (inter_time < 1000)
@@ -265,11 +270,13 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
 
 #ifdef USE_METRICS
     coll_start = ( coll_start - rank_start_time ) * 1000000000;
-    coll_end   = ( coll_end - rank_start_time ) * 1000000000;
+    coll_end   = ( coll_end   - rank_start_time ) * 1000000000;
+    coll_sleep = ( coll_sleep - rank_start_time ) * 1000000000;
 
     times_buffer[ i ].rank = rank;
     times_buffer[ i ].start = (unsigned long) coll_start;
     times_buffer[ i ].end =  (unsigned long) coll_end;
+    times_buffer[ i ].sleep = (unsigned long) coll_sleep;
 #endif
   }
 /*
@@ -315,9 +322,10 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
     fprintf(f_time, "%f,", a);
     fprintf(f_time, "%f,", b);
     fprintf(f_time, "%u,", iterations);
-    fprintf(f_time, "%lu,%lu",
-        times_buffer[i].start,
-        times_buffer[i].end);
+    fprintf(f_time, "%lu,%lu,%lu",
+        times_buffer[i].sleep    ,
+        times_buffer[i].start    ,
+        times_buffer[i].end      );
     fprintf(f_time, "\n");
   }
   fprintf(f_time, "\n");

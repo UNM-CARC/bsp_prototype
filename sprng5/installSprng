@@ -1,1 +1,1 @@
-mkdir ../.local && ./configure --prefix=${$(pwd)%/*}/.local && make install
+mkdir ../.local ; ./configure --prefix=${$(pwd)%/*}/.local && make install

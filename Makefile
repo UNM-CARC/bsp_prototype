@@ -24,5 +24,5 @@ run: all
 
 clean:
 		rm $(APP)/app_gen $(APP)/app_gen_trace $(APP)/app_gen_metrics
-rmtmp:
+cleantmp:
 		rm -rf /tmp/results/
