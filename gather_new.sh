@@ -1,5 +1,5 @@
 #!/bin/zsh
-tmp="data_generator/results/job_output/"
+tmp="/data_generator/results/job_output"
 JOBOUTPUT=${${$(pwd)%/*}%/*}"$tmp"
 if [ "$(echo $PBS_NODEFILE)" != "" ] ;
 then
