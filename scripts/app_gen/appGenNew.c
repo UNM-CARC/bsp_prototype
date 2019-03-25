@@ -70,12 +70,12 @@ get_clocks_per_nanosecond() {
 
   bench1=rdtsc();
 
-  usleep(250000); // 1/4 second
+  usleep(2500000); // 2.5 second
 
   bench2=rdtsc();
 
-  clocks_per_nanosecond =   bench2-bench1;
-  clocks_per_nanosecond *= 4.0e-9;
+  clocks_per_nanosecond =   bench2 - bench1;
+  clocks_per_nanosecond *= 4.0e-10;
 
   return clocks_per_nanosecond;
 }
@@ -272,9 +272,10 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
     //printf("rank %d MPI_Barrier %lu %lu\n", rank, (unsigned long)coll_start, (unsigned long)coll_end );
 
 #ifdef USE_METRICS
-    coll_start = ( coll_start - rank_start_time ) * 1000000000;
-    coll_end   = ( coll_end   - rank_start_time ) * 1000000000;
-    coll_sleep = ( coll_sleep - rank_start_time ) * 1000000000;
+    coll_start =     ( coll_start - rank_start_time ) * 1000000000;
+    coll_end   =     ( coll_end   - rank_start_time ) * 1000000000;
+    coll_sleep =     ( coll_sleep - rank_start_time ) * 1000000000;
+    coll_exp_sleep = ( coll_exp_sleep ) * 1000;
 
     times_buffer[ i ].rank = rank;
     times_buffer[ i ].start = (unsigned long) coll_start;
