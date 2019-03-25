@@ -12,9 +12,9 @@ NODES  = 2
 TMP_FLAG = -lclog
 
 all:
-		$(CC) $(APP)/appGenNew.c -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen_trace
-		$(CC) $(APP)/appGenNew.c -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen_metrics -DUSE_METRICS
-		$(CC) $(APP)/appGenNew.c -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen
+		$(CC) $(APP)/appGenNew.c -g -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen_trace
+		$(CC) $(APP)/appGenNew.c -g -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen_metrics -DUSE_METRICS
+		$(CC) $(APP)/appGenNew.c -g -I$(INC) -L$(LIBS) -lsprng -lgmp -lgsl -lgslcblas -o $(APP)/app_gen
 
 dat:
 		$(PY) $(DAT)/data_gen.py $(NODES)
