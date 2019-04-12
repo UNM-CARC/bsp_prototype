@@ -59,14 +59,14 @@ unsigned long long rdtsc(void)
  * http://sci.tuomastonteri.fi/programming/cplus/x86timer
  */
 
-uint64_t
+double//uint64_t
 get_clocks_per_nanosecond() {
 
   int sum=0;
   int times=0;
   uint64_t bench1=0;
   uint64_t bench2=0;
-  uint64_t clocks_per_nanosecond=0;
+  double clocks_per_nanosecond=0;
 
   bench1=rdtsc();
 
@@ -74,17 +74,16 @@ get_clocks_per_nanosecond() {
 
   bench2=rdtsc();
 
-  clocks_per_nanosecond =   bench2 - bench1;
-  clocks_per_nanosecond *= 4.0e-10;
+  clocks_per_nanosecond = 4.0e-10 * (double)(bench2 - bench1);
 
   return clocks_per_nanosecond;
 }
 
-void sleep_rdtsc(uint64_t nanoseconds, uint64_t clocks_per_nanosecond)
+void sleep_rdtsc(uint64_t nanoseconds, double clocks_per_nanosecond)
 {
   uint64_t begin=rdtsc();
   uint64_t now;
-  uint64_t dtime = nanoseconds*clocks_per_nanosecond;
+  uint64_t dtime = (uint64_t)(((double) nanoseconds)*clocks_per_nanosecond);
   do
   {
     now=rdtsc();
@@ -92,7 +91,7 @@ void sleep_rdtsc(uint64_t nanoseconds, uint64_t clocks_per_nanosecond)
 }
 
 int
-barrier_loop(double a, double b, char * distribution, int iterations, struct coll_time * times_buffer, uint64_t cpn){
+barrier_loop(double a, double b, char * distribution, int iterations, struct coll_time * times_buffer, double cpn){
 
 
 #ifdef USE_METRICS
@@ -247,17 +246,16 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
      * rdtsc + busy-waiting delay approach
      * otherwise use usleep()
      */
-// SLEEP START TODO
 #ifdef USE_METRICS
     coll_sleep = MPI_Wtime();
     coll_exp_sleep = inter_time;
 #endif
     if (inter_time > 0){
 
-      if (inter_time < 1000)
+      //if (inter_time < 1000)
         sleep_rdtsc(1000  * inter_time, cpn);
-      else
-        usleep(inter_time);
+      //else
+      //  usleep(inter_time);
     }
 
 #ifdef USE_METRICS
@@ -381,7 +379,7 @@ main(int argc, char *argv[]){
   iterations = atoi(argv[4]);
 
   struct coll_time times_buffer[ iterations ];
-  uint64_t cpn = get_clocks_per_nanosecond();
+  double cpn = get_clocks_per_nanosecond();
 
   barrier_loop(inter_mean, inter_sttdev, distribution, iterations, times_buffer, cpn);
 
