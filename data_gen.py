@@ -37,8 +37,8 @@ def mvTmp():
 
 def runProgram(nodes):
     ITERATIONS   = 1000
-    DISTRIBUTION = ["exponential", "pareto"]
-    MEAN         = [60, 80, 90, 120, 140, 160]
+    DISTRIBUTION = ["exponential", "pareto", "gaussian"]
+    MEAN         = [60, 120, 300, 1000, 3000]
     STDDEV       = [10, 30, 50]
 
     data         = np.zeros((len(DISTRIBUTION), len(MEAN), len(STDDEV)))
