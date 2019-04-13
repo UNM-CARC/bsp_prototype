@@ -48,11 +48,12 @@ def runProgram(nodes):
             for istdd in range(0, len(STDDEV)):
                 # Ensure we're not asking for a gaussian with a
                 # mean near 0, and a big std. This is not elegant or robust
-                if dist=='gaussian' and imean/float(istd) > 10
-                    program = buildArgs(DISTRIBUTION[dist], MEAN[imean], STDDEV[istdd], ITERATIONS, nodes)
-                    #print(program)
-                    data[dist][imean][istdd] = sp.check_output(program)
-                    #print(data[dist][imean][istdd])
+                if DISTRIBUTION[dist]=='gaussian' and MEAN[imean]/float(STDDEV[istdd]) < 10:
+                        continue
+                program = buildArgs(DISTRIBUTION[dist], MEAN[imean], STDDEV[istdd], ITERATIONS, nodes)
+                #print(program)
+                data[dist][imean][istdd] = sp.check_output(program)
+                #print(data[dist][imean][istdd])
     #mvTmp()
 def is_intstring(s):
     try:
