@@ -24,3 +24,14 @@ cd sprng5 && source installSprng
 ### To remove local installation:
 
 cd sprng5 && source removeSprng
+
+## perf\_cdse
+
+Contains the latest openspeedshop databases suffixed by .openss and coresponding csv files generated
+by the bsp program itself, (These show up in the same order in the directory; i.e. 0.openss corresponds to 
+the first csv appearing in the directory).
+
+To pull data from a given openss database run: "./extract\_data.sh <OUTPUTDIR> ...-n.openss"
+
+Currently there already exists a file under output names "0", still in the process of developing a better 
+way to name experiments from the openspeedshop database. (This is the CSV ouput from the above command.

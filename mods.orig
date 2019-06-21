@@ -1,0 +1,7 @@
+module load gsl-2.4-gcc-7.2.0-frvu23d       
+module load gcc-7.3.0-gcc-7.2.0-rg5awu4   
+module load fftw-3.3.7-gcc-7.2.0-impi-qpqx2uv
+module load openmpi-3.1.1-gcc-7.3.0-vrfkn7e
+module load python-3.6.3-gcc-5.4.0-ctlzpuv
+module load automake-1.15-gcc-7.1.0-r5zfq3d
+module load autoconf-2.69-gcc-7.1.0-hktigv3

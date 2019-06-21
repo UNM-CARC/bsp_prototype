@@ -1,9 +1,16 @@
-module load gsl-2.4-gcc-7.2.0-frvu23d       
-module load gcc-7.3.0-gcc-7.2.0-rg5awu4   
-module load fftw-3.3.7-gcc-7.2.0-impi-qpqx2uv
-module load openmpi-3.1.1-gcc-7.3.0-vrfkn7e
-module load python-3.6.3-gcc-5.4.0-ctlzpuv
+#!/bin/bash
+#module load gsl-2.4-gcc-7.2.0-frvu23d       
+#module load gcc-7.3.0-gcc-7.2.0-rg5awu4   
+#module load fftw-3.3.7-gcc-7.2.0-impi-qpqx2uv
+#module load openmpi-3.1.1-gcc-7.3.0-vrfkn7e
+#module load python-3.6.3-gcc-5.4.0-ctlzpuv
 module load mrnet-5.0.1-2-gcc-4.8.5-t75w3bf
-module load matlab
-module load automake-1.15-gcc-7.1.0-r5zfq3d
-module load autoconf-2.69-gcc-7.1.0-hktigv3
+module load dyninst-10.0.0-gcc-4.8.5-2ggcyh7
+
+#module load python-2.7.15-gcc-7.4.0-pouacx2 
+module load openmpi-4.0.0-gcc-4.8.5-tud6d22 
+#module load openspeedshop-2.3-gcc-4.8.5-python2-openmpi-a6mw5po
+module load openspeedshop-2.4.0-gcc-4.8.5-python2-openmpi-k7hy6tu
+module load gsl-2.5-gcc-4.8.5-eckluha
+#module load openmpi-3.1.1-gcc-4.8.5-jbzulwa
+module load openssl-1.1.1a-gcc-4.8.5-6grnaes
