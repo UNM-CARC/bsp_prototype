@@ -1,1 +1,1 @@
-mkdir ../.local ; ./configure --enable-debug --prefix=${PWD}/../.local && make install
+mkdir ../.local ; module load mpi/openmpi3-x86_64; ./configure --enable-debug --prefix=${PWD}/../.local && make install
