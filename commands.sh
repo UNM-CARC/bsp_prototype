@@ -1,3 +1,4 @@
+#!/bin/bash
 scl enable rh-python36 bash
 module load mpi/openmpi3-x86_64
 mkdir -p /tmp/results/
