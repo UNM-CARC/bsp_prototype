@@ -16,11 +16,11 @@
 #include <sys/stat.h>
 #include <openssl/ssl.h>
 
-// #include <gsl/gsl_rng.h>
-// #include <gsl/gsl_randist.h>
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 
-//#include "gsl-sprng.h"
-//#include "sprng_cpp.h"
+#include "gsl-sprng.h"
+#include "sprng_cpp.h"
 
 #include <assert.h>
 
