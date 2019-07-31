@@ -11,15 +11,16 @@
 #include <unistd.h>
 #include <assert.h>
 #include <stdint.h>
+#include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <openssl/ssl.h>
 
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
+// #include <gsl/gsl_rng.h>
+// #include <gsl/gsl_randist.h>
 
 //#include "gsl-sprng.h"
-#include "sprng_cpp.h"
+//#include "sprng_cpp.h"
 
 #include <assert.h>
 
@@ -91,8 +92,49 @@ void sleep_rdtsc(uint64_t nanoseconds, double clocks_per_nanosecond)
   }while ( (now-begin) < dtime);
 }
 
+static const char *str = "0123456789abcdef";
+
 int
-barrier_loop(double a, double b, char * distribution, int iterations, struct coll_time * times_buffer, double cpn){
+create_filename(char *name, int l )
+{
+  // Create new directories in tmp: /tmp/results/<DISTRIBUTION> to
+  // store results before writing back to the file system.
+  struct stat st = {0};
+  char hostname[1024];
+  char tmpfile[512];
+  char out[20];
+  int l2 = l;
+  int i;
+
+  hostname[1023] = '\0';
+  gethostname(hostname, 1024);
+  strcpy(tmpfile, "/tmp/results");
+  if (stat(tmpfile, &st) == -1) {
+    mkdir(tmpfile, 0700);
+  }
+  l2 -= 23;
+  strncat(tmpfile, "/", l2--);
+  strncat(tmpfile, hostname, l2);
+  l2 -= strlen(hostname);
+  strncat(tmpfile, "_", l2--);
+
+  srand((unsigned int) time(0) + getpid());
+
+  for (i = 0; i < 8; i++) {
+    out[i] = str[(rand() % 16)];
+    srand(rand());
+  }
+  out[i] = 0;
+  strncat(tmpfile, out, l2);
+  l2 -= 8;
+  strncat(tmpfile, ".csv", l2);
+
+  strncpy(name, tmpfile, l);
+  return 0;
+}
+
+int
+barrier_loop(double a, double b, char * distribution, int iterations, char *f, struct coll_time * times_buffer, double cpn){
 
 
 #ifdef USE_METRICS
@@ -113,46 +155,25 @@ barrier_loop(double a, double b, char * distribution, int iterations, struct col
   double app_end_time = 0.0;
   time_t rawtime;
   struct tm * timeinfo;
-  struct stat st = {0};
 
   FILE *f_time;
   int i, length = 13;
   int root = 0;
-  const char *str = "0123456789abcdef";
-  char tmpfile[512];
   char tmpbuff[64];
-  char hostname[1024];
-  char out[20];
+  char filename[1024];
   char experimentID[20];
-
-  hostname[1023] = '\0';
-  gethostname(hostname, 1023);
-  // Create new directories in tmp: /tmp/results/<DISTRIBUTION> to
-  // store results before writing back to the file system.
-  strcpy(tmpfile, "/tmp/results");
-  if (stat(tmpfile, &st) == -1) {
-    mkdir(tmpfile, 0700);
-  }
-  strcat(tmpfile, "/");
-  strcat(tmpfile, hostname);
-  strcat(tmpfile, "_");
-
-  srand((unsigned int) time(0) + getpid());
-
-  for (i = 0; i < length; i++) {
-    out[i] = str[(rand() % 16)];
-    srand(rand());
-  }
-  out[i] = 0;
-  strcat(tmpfile, out);
-  strcat(tmpfile, ".csv");
-
-  f_time = fopen(tmpfile, "a");
   double inter_time = 0;
   int rank = 0;
   int nprocs = 0;
   gsl_rng * r;
 
+
+  if (filename) {
+	strncpy(filename, f, 1024);
+  } else {
+	create_filename(filename, 1024);
+  }
+  f_time = fopen(filename, "a");
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
 
@@ -364,6 +385,8 @@ main(int argc, char *argv[]){
   double inter_sttdev = 0;
   int iterations = 0;
   int rank, nprocs;
+  char filename[1024];
+  char c;
 
   if(argc < 5){
     printf("Usage: app_gen <a> <b> <computation distribution> <iterations> \n");
@@ -374,15 +397,25 @@ main(int argc, char *argv[]){
   MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
-  sscanf(argv[1], "%lf", &inter_mean);
-  sscanf(argv[2], "%lf", &inter_sttdev);
-  sscanf(argv[3], "%s", distribution);
-  iterations = atoi(argv[4]);
+  while ( (c = getopt(argc, argv, "abc:d:012")) != -1) {
+        switch (c) {
+        case 'f':
+	    strncpy(filename, optarg, 1024);
+            break;
+        default:
+            printf ("?? getopt returned character code 0%o ??\n", c);
+        }
+    }
+
+  sscanf(argv[optind++], "%lf", &inter_mean);
+  sscanf(argv[optind++], "%lf", &inter_sttdev);
+  sscanf(argv[optind++], "%s", distribution);
+  iterations = atoi(argv[optind++]);
 
   struct coll_time times_buffer[ iterations ];
   double cpn = get_clocks_per_nanosecond();
 
-  barrier_loop(inter_mean, inter_sttdev, distribution, iterations, times_buffer, cpn);
+  barrier_loop(inter_mean, inter_sttdev, distribution, iterations, filename, times_buffer, cpn);
 
   MPI_Finalize();
 
