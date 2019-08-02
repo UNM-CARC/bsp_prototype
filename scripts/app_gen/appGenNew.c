@@ -397,7 +397,8 @@ main(int argc, char *argv[]){
   MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
-  while ( (c = getopt(argc, argv, "abc:d:012")) != -1) {
+  filename[0] = 0;
+  while ( (c = getopt(argc, argv, "f:")) != -1) {
         switch (c) {
         case 'f':
 	    strncpy(filename, optarg, 1024);
@@ -405,7 +406,9 @@ main(int argc, char *argv[]){
         default:
             printf ("?? getopt returned character code 0%o ??\n", c);
         }
-    }
+  }
+  if (filename[0] == 0)
+    create_filename(filename, 1024);
 
   sscanf(argv[optind++], "%lf", &inter_mean);
   sscanf(argv[optind++], "%lf", &inter_sttdev);
