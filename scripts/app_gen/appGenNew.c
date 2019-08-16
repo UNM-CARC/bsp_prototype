@@ -339,7 +339,7 @@ barrier_loop(double a, double b, char * distribution, int iterations, char *f, s
   app_start_time = 1000000000 * app_start_time;
   unsigned long final = (unsigned long) (app_end_time - app_start_time);
   for (i = 0; i < iterations; i++) {
-
+    fprintf(f_time, "%u,", i);
     fprintf(f_time, "%s,", experimentID);
     fprintf(f_time, "%d,", rank);
     fprintf(f_time, "%lu,", final);
@@ -348,11 +348,11 @@ barrier_loop(double a, double b, char * distribution, int iterations, char *f, s
     fprintf(f_time, "%f,", b);
     fprintf(f_time, "%u,", iterations);
     fprintf(f_time, "%lu,%lu,%lu,%lu,%lu",
-        times_buffer[i].sleep         ,
-        times_buffer[i].start         ,
-        times_buffer[i].end           ,
-        times_buffer[i].expected_sleep,
-        times_buffer[i].start - times_buffer[i].sleep);
+      times_buffer[i].sleep         ,
+      times_buffer[i].start         ,
+      times_buffer[i].end           ,
+      times_buffer[i].expected_sleep,
+      times_buffer[i].start - times_buffer[i].sleep);
     fprintf(f_time, "\n");
   }
   fprintf(f_time, "\n");
