@@ -24,7 +24,7 @@
 
 #define SIMPLE_SPRNG
 #define USE_MPI
-#include "sprng.h"
+#include <sprng.h>
 
 static void sprng_set(void * vstate,unsigned long int s)
 {
