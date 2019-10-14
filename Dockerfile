@@ -1,4 +1,4 @@
-FROM unmcarc/docker_base:spack
+FROM unmcarc/docker_base:master
 
 # We force our current prototype of the sprng package into the spack
 # repo on this container to try it out for now. ONce it's added to an
