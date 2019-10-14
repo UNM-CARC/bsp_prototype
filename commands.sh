@@ -1,9 +1,6 @@
 #!/bin/bash
-#scl enable rh-python36 bash
-#module load mpi/openmpi3-x86_64
 mkdir -p /tmp/results/
-echo "Running with commands $@"
-TMPFILE=`mktemp /tmp/results/${PBS_JOBNAME}-${PBS_O_HOST}.XXXXXX`
-/opt/bsp_prototype/scripts/app_gen/app_gen_metrics -f ${TMPFILE} "$@"
-cp ${TMPFILE} /results/
-rm ${TMPFILE}
+export OUTFILE=`mktemp /tmp/results/${HOST}_XXXXXXXX.csv`
+/home/docker/bsp_prototype ${OUTFILE} "$@"
+mv ${OUTFILE} /results/
+exit "$?"

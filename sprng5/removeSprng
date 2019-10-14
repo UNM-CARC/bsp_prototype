@@ -1,1 +1,0 @@
-rm -rf ${PWD}/../.local/* && make distclean
