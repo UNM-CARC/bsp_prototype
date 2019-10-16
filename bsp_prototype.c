@@ -188,7 +188,8 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
 
   	rank_start_time = MPI_Wtime();
 
-  	for( i = 0; i < iterations; i++){
+	/* We start at -5 to do 5 warmup iterations that are recorded */
+  	for( i = -5; i < iterations; i++) {
     		inter_time = generate_interval_rng(r, rng_type, a, b);
     
     		assert(inter_time >= 0.0 );
@@ -208,12 +209,15 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		coll_sleep =     ( coll_sleep - rank_start_time ) * 1000000000;
     		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
 
-    		times_buffer[ i ].rank = rank;
-    		times_buffer[ i ].start = (unsigned long) coll_start;
-    		times_buffer[ i ].end =  (unsigned long) coll_end;
-    		times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
-    		times_buffer[ i ].sleep = (unsigned long) coll_sleep;
-  	}
+		/* Don't record warmup iterations  */
+		if (i >= 0) {
+    			times_buffer[ i ].rank = rank;
+    			times_buffer[ i ].start = (unsigned long) coll_start;
+    			times_buffer[ i ].end =  (unsigned long) coll_end;
+    			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
+    			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
+  		}
+	}
   	return 0;
 }
 
@@ -269,7 +273,7 @@ void write_buffer(double a, double b, char * distribution, int iterations,
   	for (i = 0; i < iterations; i++) {
 		fprintf(f_time, "%s,", experimentID);
     		fprintf(f_time, "%d,", rank);
-   		fprintf(f_time, "%lu,", 0);
+   		fprintf(f_time, "%lu,", i);
     		fprintf(f_time, "%s,", distribution);
     		fprintf(f_time, "%f,", a);
     		fprintf(f_time, "%f,", b);
