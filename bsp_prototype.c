@@ -234,35 +234,16 @@ void write_buffer(double a, double b, char * distribution, int iterations,
   	int root = 0;
   	int i;
 	int length = 13;
-//	char tmpfile[512];
-//	struct stat st = {0};
-
-//	hostname[1023] = '\0';
-//	gethostname(hostname, 1023);
-	// Create new directories in tmp: /tmp/results/<DISTRIBUTION> to
-	// store results before writing back to the file system.
-//	strcpy(tmpfile, "/tmp/results");
-//	if (stat(tmpfile, &st) == -1) {
-//		mkdir(tmpfile, 0700);
-//	}
-//	strcat(tmpfile, "/");
-//	strcat(tmpfile, hostname);
-//	strcat(tmpfile, "_");
-
-//	for (i = 0; i < length; i++) {
-//		out[i] = str[gsl_rng_uniform_int(r, 16)];
-//	}
- // 	out[i] = 0;
-//  	strcat(tmpfile, out);
- // 	strcat(tmpfile, ".csv");
 
   	f_time = fopen(outfile, "a");
 
 	/* Share the experiment ID across ranks */
   	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   	if (rank == 0) {
+		srand(time(NULL)); // We intentionally use rand/srand here, not GSL,
+				   // so we always get a new experiment ID.
     		for (i = 0; i < length; i++) {
-      			experimentID[i] = str[gsl_rng_uniform_int(r, 16)];
+      			experimentID[i] = str[rand() % 16];
     		}
     		experimentID[i] = 0;
   	}
@@ -286,7 +267,6 @@ void write_buffer(double a, double b, char * distribution, int iterations,
         			times_buffer[i].start - times_buffer[i].sleep);
     		fprintf(f_time, "\n");
   	}
-  	fprintf(f_time, "\n");
   	fclose(f_time);
 }
 
@@ -323,8 +303,13 @@ int main(int argc, char *argv[])
    	 *  random distributions while SPRNG adds to GSL the capacity to 
    	 *  generate independent streams of random variables across MPI ranks
    	 */
-  	r = gsl_rng_alloc (gsl_rng_sprng20);
-
+/* 
+  	// If we want to reseed
+	unsigned long seed = make_sprng_seed();
+	printf("Rank %d using seed %lu.\n", rank, seed);
+	gsl_rng_set(gsl_rng_sprng50, seed); // we intentionally do this before init 
+*/
+  	r = gsl_rng_alloc (gsl_rng_sprng50);
   	double cpn = get_clocks_per_nanosecond();
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 

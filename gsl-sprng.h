@@ -2,7 +2,7 @@
  * gsl-sprng.h
  *
  * Code declaring a new GSL random number type "gsl_rng_sprng20"
- * which is a thin wrapper over the SPRNG 2.0 parallel random
+ * which is a thin wrapper over the simple SPRNG 5.0 parallel random
  * number generator.
  *
  * To use, just add the line:
@@ -28,7 +28,8 @@
 
 static void sprng_set(void * vstate,unsigned long int s)
 {
-  init_sprng(DEFAULT_RNG_TYPE,s,SPRNG_DEFAULT);
+  printf("Calling init_sprng(%lu, %lu, %lu)\n", s, SPRNG_DEFAULT, DEFAULT_RNG_TYPE);
+  init_sprng(s, SPRNG_DEFAULT, DEFAULT_RNG_TYPE);
 }
 
 static unsigned long sprng_get(void * vstate)
@@ -42,7 +43,7 @@ static double sprng_get_double(void * vstate)
 }
 
 static const gsl_rng_type sprng_type =
-  {"sprng20",        /* name */
+  {"sprng50",        /* name */
    0x7fffffffUL,     /* RAND_MAX */
    0,                /* RAND_MIN */
    0,                /* size of state - not sure about this */
@@ -50,5 +51,5 @@ static const gsl_rng_type sprng_type =
    &sprng_get,          /* get integer RN */
    &sprng_get_double};  /* get double RN */
 
-const gsl_rng_type *gsl_rng_sprng20 = &sprng_type;
+const gsl_rng_type *gsl_rng_sprng50 = &sprng_type;
 
