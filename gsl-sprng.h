@@ -28,7 +28,6 @@
 
 static void sprng_set(void * vstate,unsigned long int s)
 {
-  printf("Calling init_sprng(%lu, %lu, %lu)\n", s, SPRNG_DEFAULT, DEFAULT_RNG_TYPE);
   init_sprng(s, SPRNG_DEFAULT, DEFAULT_RNG_TYPE);
 }
 

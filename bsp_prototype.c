@@ -155,6 +155,17 @@ double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, doubl
 	} while (inter_time < 0.0);
 	return inter_time;
 }
+
+unsigned long hash_string(char *str)
+{
+        unsigned long hash = 0;
+        int c;
+
+        while (c = *str++)
+            hash = c + (hash << 6) + (hash << 16) - hash;
+
+        return hash;
+}
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
@@ -226,7 +237,6 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 {
 	const char *str = "0123456789abcdef";
 	char tmpbuff[64];
-	//char hostname[1024];
 	char out[20];
 	char experimentID[20];
   	FILE *f_time;
@@ -240,10 +250,11 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 	/* Share the experiment ID across ranks */
   	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   	if (rank == 0) {
-		srand(time(NULL)); // We intentionally use rand/srand here, not GSL,
-				   // so we always get a new experiment ID.
+		// We use GSL here, so we'll get a fixed experiment ID for a 
+		// fixed set of parameters, which is a good thing because it
+		// lets us consistently regenerate experiments.
     		for (i = 0; i < length; i++) {
-      			experimentID[i] = str[rand() % 16];
+      			experimentID[i] = str[gsl_rng_uniform_int(r, 16)];
     		}
     		experimentID[i] = 0;
   	}
@@ -279,6 +290,7 @@ int main(int argc, char *argv[])
 	int iterations = 0;
 	int rank, nprocs, ret;
   	gsl_rng * r;
+	char exp[256];
 
 	if(argc != 6){
     		printf("Usage: %s outfile a b distribution iterations\n", 
@@ -303,13 +315,16 @@ int main(int argc, char *argv[])
    	 *  random distributions while SPRNG adds to GSL the capacity to 
    	 *  generate independent streams of random variables across MPI ranks
    	 */
-/* 
-  	// If we want to reseed
-	unsigned long seed = make_sprng_seed();
-	printf("Rank %d using seed %lu.\n", rank, seed);
-	gsl_rng_set(gsl_rng_sprng50, seed); // we intentionally do this before init 
-*/
+
+	// First we seed the RNG based on the experiment we're running, including number
+	// of ranks but not our particular rank. This gives the RNG a consistent seed so 
+	// we can reproduce it.
+	char *s = exp;
+	snprintf(s, 256, "%s%s%s%s%d%d", argv[2], argv[3], argv[4], argv[5], iterations, nprocs);
+	unsigned long seed = hash_string(s);
+	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
+
   	double cpn = get_clocks_per_nanosecond();
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
