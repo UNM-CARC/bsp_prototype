@@ -16,6 +16,8 @@
 #include <sys/stat.h>
 #include <openssl/ssl.h>
 
+#include <getopt.h>
+
 #include <gsl/gsl_rng.h>
 #include "gsl-sprng.h"
 #include <gsl/gsl_randist.h>
@@ -67,8 +69,6 @@ unsigned long long rdtsc(void)
 double
 get_clocks_per_nanosecond() {
 
-  int sum=0;
-  int times=0;
   uint64_t bench1=0;
   uint64_t bench2=0;
   double clocks_per_nanosecond=0;
@@ -143,7 +143,7 @@ double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, doubl
 		case RNG_PARETO:	
       			exponent = a;
       			scale = b;
-      			inter_time = gsl_ran_pareto (r,a,b);
+      			inter_time = gsl_ran_pareto (r,exponent,scale);
 			break;
 		/* Note the straight return out in the next two to avoid the
  		 * while loop if a is 0.0 */
@@ -161,7 +161,7 @@ unsigned long hash_string(char *str)
         unsigned long hash = 0;
         int c;
 
-        while (c = *str++)
+        while ((c = *str++) != 0)
             hash = c + (hash << 6) + (hash << 16) - hash;
 
         return hash;
@@ -181,7 +181,6 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
   	double coll_sleep = 0.0;
 
   	double rank_start_time = 0.0;
-  	double rank_end_time = 0.0;
 
   	int i;
   	double inter_time = 0;
@@ -195,7 +194,6 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
   	if (rng_type < 0) {
       		return -1;
   	}
-  	double resolution = MPI_Wtick();
 
   	rank_start_time = MPI_Wtime();
 
@@ -236,8 +234,6 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
 {
 	const char *str = "0123456789abcdef";
-	char tmpbuff[64];
-	char out[20];
 	char experimentID[20];
   	FILE *f_time;
 	int rank;
@@ -265,11 +261,11 @@ void write_buffer(double a, double b, char * distribution, int iterations,
   	for (i = 0; i < iterations; i++) {
 		fprintf(f_time, "%s,", experimentID);
     		fprintf(f_time, "%d,", rank);
-   		fprintf(f_time, "%lu,", i);
+   		fprintf(f_time, "%d,", i);
     		fprintf(f_time, "%s,", distribution);
     		fprintf(f_time, "%f,", a);
     		fprintf(f_time, "%f,", b);
-    		fprintf(f_time, "%u,", iterations);
+    		fprintf(f_time, "%d,", iterations);
     		fprintf(f_time, "%lu,%lu,%lu,%lu,%lu",
         			times_buffer[i].sleep         ,
         			times_buffer[i].start         ,
@@ -281,32 +277,88 @@ void write_buffer(double a, double b, char * distribution, int iterations,
   	fclose(f_time);
 }
 
+static char distribution[256] = "gaussian";
+static double a = 100000, b = 10000;
+static unsigned long iterations = 1000;
+static unsigned long initseed = 0;
+
+static struct option longargs[] =
+{
+	{"a", required_argument, 0, 'a'},
+	{"b", required_argument, 0, 'b'},
+	{"distribution", required_argument, 0, 'd'},
+	{"iterations", required_argument, 0, 'i'},
+	{"seed", required_argument, 0, 's'},
+	{"help", no_argument, 0, 'h'},
+	{0, 0, 0, 0}
+};
+static char *shortargs = (char *)"a:b:d:i:s:h";
+
+void usage(char *progname)
+{
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] filename\n", progname);
+	return;
+}
 
 int main(int argc, char *argv[])
 {
 
-	char distribution[20] = "";
-	double a, b;
-	int iterations = 0;
+
 	int rank, nprocs, ret;
   	gsl_rng * r;
 	char exp[256];
-
-	if(argc != 6){
-    		printf("Usage: %s outfile a b distribution iterations\n", 
-		       argv[0]);
-    		return -1;
-  	}
+	char *outfile = NULL;
+	int optindex;
+	char c;
 
 	MPI_Init(&argc,&argv);
   	MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
   	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
-  	sscanf(argv[2], "%lf", &a);
-  	sscanf(argv[3], "%lf", &b);
-  	sscanf(argv[4], "%s", distribution);
-  	iterations = atoi(argv[5]);
+	for (int i = 0; i < argc; i++)
+		printf("%s ", argv[i]);
+	printf("\n");
 
+	/* Now that we've setup MPI, process remaining arguments for 
+ 	 * this application. */
+	while ((c = getopt_long(argc, argv, shortargs, longargs, &optindex)) != -1)
+	{
+		switch (c) {
+        	case 'a':
+			sscanf(optarg, "%lf", &a);
+          		break;
+        	case 'b':
+			sscanf(optarg, "%lf", &b);
+          		break;
+        	case 'd':
+          		strncpy(distribution, optarg, 256);
+          		break;
+        	case 'i':
+			sscanf(optarg, "%lu", &iterations);
+          		break;
+        	case 's':
+			sscanf(optarg, "%lu", &initseed);
+          		break;
+		case 'h':
+			usage(argv[0]);
+			exit(0);
+			break;
+        	case '?':
+        	default:
+          		/* getopt_long already printed an error message. */
+			usage(argv[0]);
+			exit(-1);
+          		break;
+		}
+	} 
+
+	/* We should have one argument left - the filename. */
+  	if (optind + 1 != argc) {
+		printf("No filename given.\n");
+		usage(argv[0]);
+		exit(-1);
+	}
+	outfile = argv[optind];
 
   	/*
    	 *  We use GSL (GSU Scientific Library) + SPRNG (The Scalable Parallel 
@@ -314,25 +366,26 @@ int main(int argc, char *argv[])
    	 *  GSL provides the generation of random variables using different 
    	 *  random distributions while SPRNG adds to GSL the capacity to 
    	 *  generate independent streams of random variables across MPI ranks
-   	 */
-
-	// First we seed the RNG based on the experiment we're running, including number
-	// of ranks but not our particular rank. This gives the RNG a consistent seed so 
-	// we can reproduce it.
-	char *s = exp;
-	snprintf(s, 256, "%s%s%s%s%d%d", argv[2], argv[3], argv[4], argv[5], iterations, nprocs);
-	unsigned long seed = hash_string(s);
+	 *
+	 * We seed the RNG based on the experiment we're running, including number
+	 * of ranks but not our particular rank. This gives the RNG a consistent seed so 
+	 * we can reproduce it.
+	 */
+	snprintf(exp, 256, "%lu%s%lf%lf%lu%d", 
+		 initseed, distribution, a, b, iterations, nprocs);
+	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
 
   	double cpn = get_clocks_per_nanosecond();
-  	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
+  	struct coll_time *times_buffer =
+		(struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
   	ret = barrier_loop(a, b, distribution, iterations, times_buffer, 
 			   cpn, r);
   	if (!ret)
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
-			     argv[1]);
+			     outfile);
 
 	free(times_buffer);
   	free(r);
