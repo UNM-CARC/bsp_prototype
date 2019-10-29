@@ -1,4 +1,4 @@
-ARG BASE_CONTAINER=unmcarc/docker_base:tacc
+ARG BASE_CONTAINER=unmcarc/docker_base:latest
 FROM ${BASE_CONTAINER}
 
 # We force our current prototype of the sprng package into the spack
