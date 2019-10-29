@@ -43,10 +43,10 @@
 
 struct coll_time{
   int rank;
-  unsigned long expected_sleep;
-  unsigned long start;
-  unsigned long end;
-  unsigned long sleep;
+  double expected_sleep;
+  double start;
+  double end;
+  double sleep;
 };
 
 
@@ -204,8 +204,9 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		assert(inter_time >= 0.0 );
 
     		coll_sleep = MPI_Wtime();
-    		coll_exp_sleep = inter_time;
+    		coll_exp_sleep = inter_time; // Pick a sleep length in microseconds
     		if (inter_time > 0){
+			// This time is in nanoseconds, convert here
         		sleep_rdtsc(1000  * inter_time, cpn);
     		}
 
@@ -213,18 +214,14 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
 
-    		coll_start =     ( coll_start - rank_start_time ) * 1000000000;
-    		coll_end   =     ( coll_end   - rank_start_time ) * 1000000000;
-    		coll_sleep =     ( coll_sleep - rank_start_time ) * 1000000000;
-    		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
-
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
+			// Record things in microseconds
     			times_buffer[ i ].rank = rank;
-    			times_buffer[ i ].start = (unsigned long) coll_start;
-    			times_buffer[ i ].end =  (unsigned long) coll_end;
-    			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
-    			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
+    			times_buffer[ i ].start = (coll_start - rank_start_time) * 1000000;
+    			times_buffer[ i ].end = (coll_end - rank_start_time) * 1000000;
+    			times_buffer[ i ].expected_sleep = coll_exp_sleep;
+    			times_buffer[ i ].sleep = (coll_sleep - rank_start_time) * 1000000;
   		}
 	}
   	return 0;
@@ -266,7 +263,7 @@ void write_buffer(double a, double b, char * distribution, int iterations,
     		fprintf(f_time, "%f,", a);
     		fprintf(f_time, "%f,", b);
     		fprintf(f_time, "%d,", iterations);
-    		fprintf(f_time, "%lu,%lu,%lu,%lu,%lu",
+    		fprintf(f_time, "%.3lf,%.3lf,%.3lf,%.3lf,%.3lf",
         			times_buffer[i].sleep         ,
         			times_buffer[i].start         ,
         			times_buffer[i].end           ,
@@ -371,7 +368,7 @@ int main(int argc, char *argv[])
 	 * of ranks but not our particular rank. This gives the RNG a consistent seed so 
 	 * we can reproduce it.
 	 */
-	snprintf(exp, 256, "%lu%s%lf%lf%lu%d", 
+	snprintf(exp, 256, "%lu%32s%f%f%lu%d", 
 		 initseed, distribution, a, b, iterations, nprocs);
 	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
