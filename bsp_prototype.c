@@ -49,6 +49,7 @@ struct coll_time{
   double sleep;
 };
 
+static int json_output = 0;
 
 /* 
  * Code to sleep for a pre-determined about of time on an x86_64 system as
@@ -256,6 +257,7 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 
 	/* Print the logged data to the local data file */
   	for (i = 0; i < iterations; i++) {
+	  if( !json_output ) {
 		fprintf(f_time, "%s,", experimentID);
     		fprintf(f_time, "%d,", rank);
    		fprintf(f_time, "%d,", i);
@@ -270,6 +272,32 @@ void write_buffer(double a, double b, char * distribution, int iterations,
         			times_buffer[i].expected_sleep,
         			times_buffer[i].start - times_buffer[i].sleep);
     		fprintf(f_time, "\n");
+	  } else {
+	    fprintf( f_time,
+		     "{ "
+		     " ""uniq_id"": %s, "
+		     " ""rank"": %d, "
+		     " ""iteration"": %d, "
+		     " ""distribution"": %s, "
+		     " ""a"": %f, "
+		     " ""b"": %f, "
+		     " ""iterations"": %d, "
+		     " ""sleep_start"": %lu, "
+		     " ""barrier_start"": %lu, "
+		     " ""barrier_end"": %lu, "
+		     " ""expected_sleep_usec"": %lu, "
+		     " ""actual_sleep_usec"": %lu "
+		     " }\n",
+		     experimentID, rank, i,
+		     distribution, a, b, iterations, 
+		     times_buffer[i].sleep         ,
+		     times_buffer[i].start         ,
+		     times_buffer[i].end           ,
+		     times_buffer[i].expected_sleep,
+		     times_buffer[i].start - times_buffer[i].sleep );
+	  }
+
+	  
   	}
   	fclose(f_time);
 }
@@ -285,15 +313,16 @@ static struct option longargs[] =
 	{"b", required_argument, 0, 'b'},
 	{"distribution", required_argument, 0, 'd'},
 	{"iterations", required_argument, 0, 'i'},
+	{"json", no_argument, 0, 'j'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:s:h";
+static char *shortargs = (char *)"a:b:d:i:j:s:h";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] filename\n", progname);
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-j] [-s initial seed] filename\n", progname);
 	return;
 }
 
@@ -333,6 +362,9 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
+		case 'j':
+		  json_output = 1;
+		  break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
           		break;
