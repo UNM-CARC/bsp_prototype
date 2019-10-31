@@ -278,6 +278,7 @@ static char distribution[256] = "gaussian";
 static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
+static unsigned int reducedout = 0;
 
 static struct option longargs[] =
 {
@@ -285,22 +286,21 @@ static struct option longargs[] =
 	{"b", required_argument, 0, 'b'},
 	{"distribution", required_argument, 0, 'd'},
 	{"iterations", required_argument, 0, 'i'},
+	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:s:h";
+static char *shortargs = (char *)"a:b:d:i:rs:h";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] filename\n", progname);
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-r] filename\n", progname);
 	return;
 }
 
 int main(int argc, char *argv[])
 {
-
-
 	int rank, nprocs, ret;
   	gsl_rng * r;
 	char exp[256];
@@ -333,6 +333,9 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
+		case 'r':
+			reducedout = 1;
+			break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
           		break;
@@ -380,7 +383,7 @@ int main(int argc, char *argv[])
 
   	ret = barrier_loop(a, b, distribution, iterations, times_buffer, 
 			   cpn, r);
-  	if (!ret)
+  	if (!ret && ((rank == 0) || !reducedout))
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
 			     outfile);
 

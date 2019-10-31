@@ -6,7 +6,7 @@
 
 ARG DOCKER_TAG=latest
 ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
-FROM BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 # We force our current prototype of the sprng package into the spack
 # repo on this container to try it out for now. ONce it's added to an
