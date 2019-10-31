@@ -1,5 +1,12 @@
-ARG BASE_CONTAINER=unmcarc/docker_base:latest
-FROM ${BASE_CONTAINER}
+# By default, we build from a base with the same docker tag as the tag for
+# this build, passed in as a build_arg, with the latest (generic) 
+# docker base image used by default. However, builds that want to explicitly
+# set the base image used for building can control this by setting the 
+# BASE_IMAGE variable instead.
+
+ARG DOCKER_TAG=latest
+ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
+FROM BASE_IMAGE
 
 # We force our current prototype of the sprng package into the spack
 # repo on this container to try it out for now. ONce it's added to an
