@@ -75,11 +75,11 @@ unsigned long long rdtsc(void)
 }
 
 void* myAlloc(size_t size){
-	memory = malloc(size);
+	void* memory = malloc(size);
 	if (memory == NULL){
 		char buffer[30];
-		sprintf(buffer, "Unable to allocate memory of size %ud", size);
-		err_out(buffer)
+		sprintf(buffer, "Unable to allocate memory of size %lu", size);
+		err_out(buffer);
 	}
 	return memory;
 }
@@ -271,9 +271,9 @@ void divideLeftOver(const int rank, const int cores, const int gridSize, const i
 		*end = *start + width -1 ;
 	}
 	width = *end - *start + 1;
-	if(*width == 0){
+	if(width == 0){
 		char errorMessage[30];
-		sprintf(errorMessage, "rank %d has 0 work to do!", %rank)
+		sprintf(errorMessage, "rank %d has 0 work to do!", rank);
 		err_out(errorMessage);
 	}
 
@@ -303,7 +303,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
   	}
 	int myIDX, myIDY, coresX, coresY;
 	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
-	int width, height, leftOver, xstart, xend, ystart, yend;
+	int width, height, xstart, xend, ystart, yend;
 	divide_cores(nprocs, &coresX, &coresY);
 	myIDX = rank % coresX;
 	myIDY = rank / coresX;
@@ -322,7 +322,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 	int valueBufferSize = MAX(width, height) * RADIUS;
 	double* myValues = (double*) myAlloc(valueBufferSize * sizeof(double));
 	//the values we send and recieve are basicaly the rank number
-	for(int i=0; i < valueBufferSize, i++){
+	for(int i=0; i < valueBufferSize; i++){
 		myValues[i] = double(rank);
 	}
 	double* topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
@@ -378,11 +378,11 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 				MPI_Wait(requests + 7 , MPI_STATUS_IGNORE);
 			}
 			if(myIDX < coresX -1){
-				MPI_Wait(request + 2, MPI_STATUS_IGNORE);
+				MPI_Wait(requests + 2, MPI_STATUS_IGNORE);
 				MPI_Wait(requests + 6 , MPI_STATUS_IGNORE);
 			}
 			if(myIDY > 0){
-				MPI_Wait(request + 1, MPI_STATUS_IGNORE);
+				MPI_Wait(requests + 1, MPI_STATUS_IGNORE);
 				MPI_Wait(requests + 5 , MPI_STATUS_IGNORE);
 			}
 			if(myIDY < coresY -1){
@@ -477,7 +477,7 @@ static struct option longargs[] =
 	{"distribution", required_argument, 0, 'd'},
 	{"iterations", required_argument, 0, 'i'},
 	{"seed", required_argument, 0, 's'},
-	{"help", no_argument, 0, 'h'},;
+	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
 	{0, 0, 0, 0}
 };
