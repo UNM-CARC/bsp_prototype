@@ -500,7 +500,6 @@ int main(int argc, char *argv[])
 	char *outfile = NULL;
 	int optindex;
 	char c;
-	int iterations = 1000;
 	int grid_Size=1000;
 
 	MPI_Init(&argc,&argv);
@@ -536,7 +535,7 @@ int main(int argc, char *argv[])
 				exit(0);
 				break;
 			case 't':
-				sscanf("%d", grid_Size);
+				sscanf(optarg, "%d", &grid_Size);
 				do_stencil = 1;
 				break;
         	case '?':
