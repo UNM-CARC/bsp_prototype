@@ -33,7 +33,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#define DEBUG 1
+
 #define RADIUS 1
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -47,6 +47,7 @@
  * constant    a = interarrival constant duration, b does not have effect
  */
 
+unsigned char DEBUG = 0;
 struct coll_time{
   int rank;
   unsigned long expected_sleep;
@@ -65,7 +66,7 @@ void err_out(const char* errMessage){
 }
 /* 
  * Code to sleep for a pre-determined about of time on an x86_64 system as
- * closely as possible by busy-waiting on the time stamp counter 
+ * closely as possible by busy-waitng on the time stamp counter 
  */
 unsigned long long rdtsc(void)
 {
@@ -286,7 +287,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
   	double coll_start = 0.0;
   	double coll_end = 0.0;
   	double coll_sleep = 0.0;
-	double mpi_waitTime = 0.0;
+    double mpi_waitTime = 0.0;
   	double rank_start_time = 0.0;
   	int i;
   	double inter_time = 0;
@@ -307,12 +308,15 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 	divide_cores(nprocs, &coresX, &coresY);
 	myIDX = rank % coresX;
 	myIDY = rank / coresX;
-	myLeftNbr = myIDX - 1;
-	myRightNbr = myIDX + 1;
-	myTopNbr = myIDY + 1;
-	myBottomNbr = myIDY - 1;
+	myLeftNbr = rank - 1;
+	myRightNbr = rank + 1;
+	myTopNbr = rank + coresX;
+	myBottomNbr = rank - coresX;
+  if (rank == 0 && DEBUG){
+    printf("There are %d cores in x and %d cores in y\n", coresX, coresY);
+  }
 	if (DEBUG){
-		printf("I am rank %d, my neighbors are %d %d %d %d", rank, myLeftNbr, myRightNbr, myTopNbr, myBottomNbr);
+		printf("I am rank %d, my IDX is %d my IDY is %d my left and right neighbors are %d %d and my top and bottom are %d %d\n", rank, myIDX, myIDY, myLeftNbr, myRightNbr, myTopNbr, myBottomNbr);
 	}
 	// We need to take care of left-overs. the end and start are both inclusive
 	divideLeftOver(rank, coresX, gridSize, myIDX, &xstart, &xend);
@@ -348,7 +352,6 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 				MPI_Irecv(leftBuffer, height * RADIUS, MPI_DOUBLE, myLeftNbr, 977, MPI_COMM_WORLD, &requests[3]);
 			}
 			//now sleep which counts as our computation
-			
 			inter_time = generate_interval_rng(r, rng_type, a, b);
     
     		assert(inter_time >= 0.0 );
@@ -371,27 +374,25 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 			if(myIDX < coresX - 1){
 				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[6]);
 			}
-			
 			mpi_waitTime = MPI_Wtime();
 			//let the waiting begin!
 			if(myIDX > 0){
-				MPI_Wait(requests +3, MPI_STATUS_IGNORE);
-				MPI_Wait(requests + 7 , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[3], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[7] , MPI_STATUS_IGNORE);
 			}
 			if(myIDX < coresX -1){
-				MPI_Wait(requests + 2, MPI_STATUS_IGNORE);
-				MPI_Wait(requests + 6 , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[2], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[6] , MPI_STATUS_IGNORE);
 			}
 			if(myIDY > 0){
-				MPI_Wait(requests + 1, MPI_STATUS_IGNORE);
-				MPI_Wait(requests + 5 , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[1], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[5] , MPI_STATUS_IGNORE);
 			}
 			if(myIDY < coresY -1){
-				MPI_Wait(requests , MPI_STATUS_IGNORE);
-				MPI_Wait(requests + 4 , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[0] , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[4], MPI_STATUS_IGNORE);
 			}
 			mpi_waitTime = MPI_Wtime() - mpi_waitTime;
-
     		coll_start = MPI_Wtime();
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
@@ -480,9 +481,10 @@ static struct option longargs[] =
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
+	{"debug", no_argument, 0, 'g'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:s:n:t:h";
+static char *shortargs = (char *)"a:b:d:i:s:n:t:hg";
 
 void usage(char *progname)
 {
@@ -539,8 +541,11 @@ int main(int argc, char *argv[])
 				sscanf(optarg, "%d", &grid_Size);
 				do_stencil = 1;
 				break;
-        	case '?':
-        	default:
+      case 'g':
+        DEBUG = 1;
+        break;
+      case '?':
+      default:
           		/* getopt_long already printed an error message. */
 			usage(argv[0]);
 			exit(-1);
