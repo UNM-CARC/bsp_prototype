@@ -336,16 +336,16 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
   	for( i = -5; i < iterations; i++) {
     		//top bottom right left
 			if (myIDY < coresY - 1){
-				MPI_Irecv(topBuffer, width * RADIUS, MPI_DOUBLE, myTopNbr, myTopNbr, MPI_COMM_WORLD, &requests[0]);
+				MPI_Irecv(topBuffer, width * RADIUS, MPI_DOUBLE, myTopNbr, 811, MPI_COMM_WORLD, &requests[0]);
 			}
 			if (myIDY > 0){
-				MPI_Irecv(downBuffer, width * RADIUS, MPI_DOUBLE, myBottomNbr, myBottomNbr, MPI_COMM_WORLD, &requests[1]);
+				MPI_Irecv(downBuffer, width * RADIUS, MPI_DOUBLE, myBottomNbr, 823, MPI_COMM_WORLD, &requests[1]);
 			}
 			if (myIDX < coresX - 1){
-				MPI_Irecv(rightBuffer, height * RADIUS, MPI_DOUBLE, myRightNbr, myRightNbr, MPI_COMM_WORLD, &requests[2]);
+				MPI_Irecv(rightBuffer, height * RADIUS, MPI_DOUBLE, myRightNbr, 919, MPI_COMM_WORLD, &requests[2]);
 			}
 			if (myIDX > 0){
-				MPI_Irecv(leftBuffer, height * RADIUS, MPI_DOUBLE, myLeftNbr, myLeftNbr, MPI_COMM_WORLD, &requests[3]);
+				MPI_Irecv(leftBuffer, height * RADIUS, MPI_DOUBLE, myLeftNbr, 977, MPI_COMM_WORLD, &requests[3]);
 			}
 			//now sleep which counts as our computation
 			
@@ -359,18 +359,19 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
         		sleep_rdtsc(1000  * inter_time, cpn);
     		}
 		//now sends
-			if(myIDY < coresY - 1){		
-				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myTopNbr, myIDY, MPI_COMM_WORLD, &requests[4]);
-			}
 			if(myIDY > 0){
-				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myBottomNbr, myIDY, MPI_COMM_WORLD, &requests[5]);
+				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myBottomNbr, 811, MPI_COMM_WORLD, &requests[5]);
 			}
-			if(myIDX < coresX - 1){
-				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, myIDX, MPI_COMM_WORLD, &requests[6]);
+			if(myIDY < coresY - 1){		
+				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myTopNbr, 823, MPI_COMM_WORLD, &requests[4]);
 			}
 			if(myIDX > 0){
-				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myLeftNbr, myIDX, MPI_COMM_WORLD, &requests[7]);
+				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myLeftNbr, 919, MPI_COMM_WORLD, &requests[7]);
 			}
+			if(myIDX < coresX - 1){
+				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[6]);
+			}
+			
 			mpi_waitTime = MPI_Wtime();
 			//let the waiting begin!
 			if(myIDX > 0){
