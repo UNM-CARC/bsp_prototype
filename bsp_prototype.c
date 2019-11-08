@@ -3,7 +3,7 @@
  * Copyright 2015. Oscar Mondragon
  * bsp_prototype.c (previously appGen.c)
  * Description: 
- * For the stencil part, the code in slight modification of Jeff Hammonds codebase 'PRK Stencil'
+ * For the stencil part, parts of the code are slight modification of Jeff Hammonds codebase 'PRK Stencil'
  * https://github.com/jeffhammond/PRK
  *
  */
@@ -17,7 +17,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <openssl/ssl.h>
-#include<math.h>
+#include <math.h>
 #include <getopt.h>
 
 #include <gsl/gsl_rng.h>
@@ -55,7 +55,7 @@ struct coll_time{
   	double start;
   	double end;
   	double sleep;
-	double long stencilWait;
+	double stencilWait;
 };
 
 // a methods to exit in case of an error!

@@ -27,8 +27,7 @@ RUN spack add sprng gsl \
 
 # Finally, compile any addtional programs needed locally and set our command
 # that will be run on container start.
-COPY docker_make_temp bsp_prototype.c gsl-sprng.h /home/docker/
-RUN ["mv", "/home/docker/docker_make_temp", "/home/docker/Makefile"]
+COPY Makefile bsp_prototype.c gsl-sprng.h /home/docker/
 COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype
 RUN ["chmod", "+x", "/home/docker/commands.sh"]
