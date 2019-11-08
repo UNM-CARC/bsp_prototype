@@ -35,6 +35,7 @@
 
 
 #define RADIUS 1
+#define SECOND_TO_MICRO_FACTOR 1000000
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 /*
@@ -49,12 +50,12 @@
 
 unsigned char DEBUG = 0;
 struct coll_time{
-  int rank;
-  unsigned long expected_sleep;
-  unsigned long start;
-  unsigned long end;
-  unsigned long sleep;
-  unsigned long stencilWait;
+	int rank;
+  	double expected_sleep;
+  	double start;
+  	double end;
+  	double sleep;
+	double long stencilWait;
 };
 
 // a methods to exit in case of an error!
@@ -78,7 +79,7 @@ unsigned long long rdtsc(void)
 void* myAlloc(size_t size){
 	void* memory = malloc(size);
 	if (memory == NULL){
-		char buffer[30];
+		char buffer[50];
 		sprintf(buffer, "Unable to allocate memory of size %lu", size);
 		err_out(buffer);
 	}
@@ -236,8 +237,9 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		assert(inter_time >= 0.0 );
 
     		coll_sleep = MPI_Wtime();
-    		coll_exp_sleep = inter_time;
+    		coll_exp_sleep = inter_time; // Pick a sleep length in microseconds
     		if (inter_time > 0){
+			// This time is in nanoseconds, convert here
         		sleep_rdtsc(1000  * inter_time, cpn);
     		}
 
@@ -245,18 +247,14 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
 
-    		coll_start =     ( coll_start - rank_start_time ) * 1000000000;
-    		coll_end   =     ( coll_end   - rank_start_time ) * 1000000000;
-    		coll_sleep =     ( coll_sleep - rank_start_time ) * 1000000000;
-    		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
-
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
+			// Record things in microseconds
     			times_buffer[ i ].rank = rank;
-    			times_buffer[ i ].start = (unsigned long) coll_start;
-    			times_buffer[ i ].end =  (unsigned long) coll_end;
-    			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
-    			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
+    			times_buffer[ i ].start = (coll_start - rank_start_time) * SECOND_TO_MICRO_FACTOR;
+    			times_buffer[ i ].end = (coll_end - rank_start_time) * SECOND_TO_MICRO_FACTOR;
+    			times_buffer[ i ].expected_sleep = coll_exp_sleep;
+    			times_buffer[ i ].sleep = (coll_sleep - rank_start_time) * SECOND_TO_MICRO_FACTOR;
   		}
 	}
   	return 0;
@@ -300,7 +298,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 
   	enum rng_type rng_type = init_rng_type(distribution);
   	if (rng_type < 0) {
-      		return -1;
+      	return -1;
   	}
 	int myIDX, myIDY, coresX, coresY;
 	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
@@ -312,9 +310,9 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 	myRightNbr = rank + 1;
 	myTopNbr = rank + coresX;
 	myBottomNbr = rank - coresX;
-  if (rank == 0 && DEBUG){
-    printf("There are %d cores in x and %d cores in y\n", coresX, coresY);
-  }
+  	if (rank == 0 && DEBUG){
+    	printf("There are %d cores in x and %d cores in y\n", coresX, coresY);
+  	}
 	if (DEBUG){
 		printf("I am rank %d, my IDX is %d my IDY is %d my left and right neighbors are %d %d and my top and bottom are %d %d\n", rank, myIDX, myIDY, myLeftNbr, myRightNbr, myTopNbr, myBottomNbr);
 	}
@@ -393,13 +391,14 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 				MPI_Wait(&requests[4], MPI_STATUS_IGNORE);
 			}
 			mpi_waitTime = MPI_Wtime() - mpi_waitTime;
+			mpi_waitTime *= SECOND_TO_MICRO_FACTOR;
     		coll_start = MPI_Wtime();
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
 
-    		coll_start =     ( coll_start - rank_start_time ) * 1000000000;
-    		coll_end   =     ( coll_end   - rank_start_time ) * 1000000000;
-    		coll_sleep =     ( coll_sleep - rank_start_time ) * 1000000000;
+    		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
 
 		/* Don't record warmup iterations  */
@@ -456,7 +455,7 @@ void write_buffer(double a, double b, char * distribution, int iterations,
     		fprintf(f_time, "%f,", a);
     		fprintf(f_time, "%f,", b);
     		fprintf(f_time, "%d,", iterations);
-    		fprintf(f_time, "%lu,%lu,%lu,%lu,%lu",
+    		fprintf(f_time, "%.3lf,%.3lf,%.3lf,%.3lf,%.3lf",
         			times_buffer[i].sleep         ,
         			times_buffer[i].start         ,
         			times_buffer[i].end           ,
@@ -471,6 +470,7 @@ static char distribution[256] = "gaussian";
 static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
+static unsigned int reducedout = 0;
 
 static struct option longargs[] =
 {
@@ -478,24 +478,23 @@ static struct option longargs[] =
 	{"b", required_argument, 0, 'b'},
 	{"distribution", required_argument, 0, 'd'},
 	{"iterations", required_argument, 0, 'i'},
+	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
 	{"debug", no_argument, 0, 'g'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:s:n:t:hg";
+static char *shortargs = (char *)"a:b:d:i:s:n:t:hgr";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t gridsize] filename\n", progname);
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t gridsize] [-r] [-g] filename\n", progname);
 	return;
 }
 
 int main(int argc, char *argv[])
 {
-
-
 	int rank, nprocs, ret;
   	gsl_rng * r;
 	char exp[256];
@@ -530,6 +529,9 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
+			case 'r':
+				reducedout = 1;
+				break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
           		break;
@@ -541,14 +543,14 @@ int main(int argc, char *argv[])
 				sscanf(optarg, "%d", &grid_Size);
 				do_stencil = 1;
 				break;
-      case 'g':
-        DEBUG = 1;
-        break;
-      case '?':
-      default:
+      		case 'g':
+        		DEBUG = 1;
+        		break;
+      		case '?':
+      		default:
           		/* getopt_long already printed an error message. */
-			usage(argv[0]);
-			exit(-1);
+				usage(argv[0]);
+				exit(-1);
           		break;
 		}
 	} 
@@ -572,27 +574,25 @@ int main(int argc, char *argv[])
 	 * of ranks but not our particular rank. This gives the RNG a consistent seed so 
 	 * we can reproduce it.
 	 */
-	snprintf(exp, 256, "%lu%s%lf%lf%lu%d", 
+	snprintf(exp, 256, "%lu%32s%f%f%lu%d", 
 		 initseed, distribution, a, b, iterations, nprocs);
 	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
 
   	double cpn = get_clocks_per_nanosecond();
-  	struct coll_time *times_buffer =
-		(struct coll_time *)calloc(iterations, sizeof(struct coll_time));
+  	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
 	if (!do_stencil){
-  		ret = barrier_loop(a, b, distribution, iterations, times_buffer, 
-			   cpn, r);
+  		ret = barrier_loop(a, b, distribution, iterations, times_buffer, cpn, r);
 	}else{
-		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, 
-			   cpn, r, grid_Size);
+		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, grid_Size);
 	}
-  	if (!ret)
+
+  	if (!ret && ((rank == 0) || !reducedout)){
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
 			     outfile);
-
+	  }
 	free(times_buffer);
   	free(r);
 
