@@ -84,6 +84,52 @@ get_clocks_per_nanosecond() {
   return clocks_per_nanosecond;
 }
 
+double get_flops_per_clock() {
+  uint64_t bench1=0;
+  uint64_t bench2=0;
+  double flops_per_clock=0;
+  double temp = 0;
+  bench1 = rdtsc();
+  temp = 3.14159 * 1.2345;
+  bench2 = rdtsc();
+  flops_per_clock = bench2 - bench1;
+  return flops_per_clock;
+}
+
+double get_io_per_clock() {
+  uint64_t bench1=0;
+  uint64_t bench2=0;
+  double io_per_clock=0;
+  double temp = 0;
+  FILE *file = fopen("temp.txt", "w");
+  bench1 = rdtsc();
+  fprintf(file, "You can delete this file after running the bsp_prototye");
+  fclose(file);
+  bench2 = rdtsc();
+  io_per_clock = bench2 - bench1;
+  return io_per_clock;
+}
+
+enum sleep_type {
+	SLEEP_ERROR=-1,
+	SLEEP_RDTSC,
+	SLEEP_IO,
+	SLEEP_CPU,
+};
+
+enum sleep_type init_sleep_type(char *sleeptype)
+{
+	if (strcmp(sleeptype,"rdtsc") == 0) {
+		return SLEEP_RDTSC;
+	} else if (strcmp(sleeptype, "io") == 0) {
+		return SLEEP_IO;
+	} else if (strcmp(sleeptype, "cpu") == 0) {
+		return SLEEP_CPU;
+	} else {
+		return SLEEP_ERROR;
+	}
+}
+
 void sleep_rdtsc(uint64_t nanoseconds, double clocks_per_nanosecond)
 {
   uint64_t begin=rdtsc();
@@ -95,6 +141,44 @@ void sleep_rdtsc(uint64_t nanoseconds, double clocks_per_nanosecond)
   }while ( (now-begin) < dtime);
 }
 
+void sleep_io(uint64_t nanoseconds, double io_per_nanosecond)
+{
+  uint64_t i = 0;
+  uint64_t num_ios = nanoseconds * io_per_nanosecond;
+  for (i = 0; i < num_ios; ++i)
+  {
+    FILE *file = fopen("temp.txt", "w");
+    fprintf(file, "You can delete this file after running the bsp_prototye");
+    fclose(file);
+  } 
+}
+
+void sleep_cpu(uint64_t nanoseconds, double flops_per_nanosecond)
+{
+  uint64_t i = 0;
+  uint64_t flops = flops_per_nanosecond * nanoseconds;
+  double temp;
+  for (i = 0; i < flops; ++i)
+  {
+    temp = clocks_per_nanosecond * clocks_per_nanosecond;
+  }
+}
+
+void sleep(enum sleep_type sleep_type, uint64_t nanoseconds, double clocks_per_nanosecond)
+{
+	switch(sleep_type) {
+	case SLEEP_RDTSC:
+		sleep_rdtsc(nanoseconds, clocks_per_nanosecond);
+		break;
+	case SLEEP_IO:
+		sleep_io(nanoseconds, clocks_per_nanosecond);
+		break;
+	case SLEEP_CPU:
+		sleep_cpu(nanoseconds, clocks_per_nanosecond);
+		break;
+	default:
+		/* Do Nothing */
+}
 
 /* Code to generate the length of the random intervals on each node */
 enum rng_type {
@@ -173,7 +257,8 @@ unsigned long hash_string(char *str)
  * as we run for later output.
  */
 int barrier_loop(double a, double b, char * distribution, int iterations, 
-		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
+		 struct coll_time * times_buffer, double cpn, double fpn,
+		 double iopn, gsl_rng *r, char * sleeptype)
 {
   	double coll_exp_sleep = 0.0;
   	double coll_start = 0.0;
@@ -194,6 +279,11 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
   	if (rng_type < 0) {
       		return -1;
   	}
+	
+	enum sleep_type sleep_type = init_sleep_type(sleeptype);
+	if (sleep_type < 0) {
+		return -1;
+	}
 
   	rank_start_time = MPI_Wtime();
 
@@ -207,7 +297,7 @@ int barrier_loop(double a, double b, char * distribution, int iterations,
     		coll_exp_sleep = inter_time; // Pick a sleep length in microseconds
     		if (inter_time > 0){
 			// This time is in nanoseconds, convert here
-        		sleep_rdtsc(1000  * inter_time, cpn);
+        		sleep(sleep_type, 1000  * inter_time, cpn, fpn, iopn);
     		}
 
     		coll_start = MPI_Wtime();
@@ -279,6 +369,7 @@ static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
 static unsigned int reducedout = 0;
+static char sleeptype[256] = "rtdsc";
 
 static struct option longargs[] =
 {
@@ -288,14 +379,15 @@ static struct option longargs[] =
 	{"iterations", required_argument, 0, 'i'},
 	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
+	{"sleep-type", no_argument, 0, 't'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:rs:h";
+static char *shortargs = (char *)"a:b:d:i:rs:h:t";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-r] filename\n", progname);
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-r] [-t sleep type] filename\n", progname);
 	return;
 }
 
@@ -343,6 +435,8 @@ int main(int argc, char *argv[])
 			usage(argv[0]);
 			exit(0);
 			break;
+		case 't':
+			strncpy(sleeptype, optarg, 256);
         	case '?':
         	default:
           		/* getopt_long already printed an error message. */
@@ -371,18 +465,21 @@ int main(int argc, char *argv[])
 	 * of ranks but not our particular rank. This gives the RNG a consistent seed so 
 	 * we can reproduce it.
 	 */
-	snprintf(exp, 256, "%lu%32s%f%f%lu%d", 
-		 initseed, distribution, a, b, iterations, nprocs);
+	snprintf(exp, 256, "%lu%32s%f%f%lu%d%32s", 
+		 initseed, distribution, a, b, iterations, nprocs, sleeptype);
 	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
 
   	double cpn = get_clocks_per_nanosecond();
-  	struct coll_time *times_buffer =
+  	double fpn = get_clocks_per_flop() * cpn;
+	double iopn = get_clocks_per_io() * cpn;
+
+	struct coll_time *times_buffer =
 		(struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
   	ret = barrier_loop(a, b, distribution, iterations, times_buffer, 
-			   cpn, r);
+			   cpn, fpn, iopn, r, sleeptype);
   	if (!ret && ((rank == 0) || !reducedout))
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
 			     outfile);
