@@ -164,17 +164,19 @@ void sleep_cpu(uint64_t nanoseconds, double flops_per_nanosecond)
   }
 }
 
-void sleep(enum sleep_type sleep_type, uint64_t nanoseconds, double clocks_per_nanosecond)
+void sleep(enum sleep_type sleep_type, uint64_t nanoseconds, 
+	   double clocks_per_nanosecond, double flops_per_nanosecond,
+	   double io_per_nanosecond)
 {
 	switch(sleep_type) {
 	case SLEEP_RDTSC:
 		sleep_rdtsc(nanoseconds, clocks_per_nanosecond);
 		break;
 	case SLEEP_IO:
-		sleep_io(nanoseconds, clocks_per_nanosecond);
+		sleep_io(nanoseconds, io_per_nanosecond);
 		break;
 	case SLEEP_CPU:
-		sleep_cpu(nanoseconds, clocks_per_nanosecond);
+		sleep_cpu(nanoseconds, flops_per_nanosecond);
 		break;
 	default:
 		/* Do Nothing */
