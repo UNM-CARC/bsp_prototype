@@ -201,6 +201,26 @@ unsigned long hash_string(char *str)
 
         return hash;
 }
+
+void divideLeftOver(const int rank, const int cores, const int gridSize, const int id,  int* start, int* end){
+  int width = gridSize / cores;
+  int leftOver = gridSize % cores;
+  if (id < leftOver){
+    *start = id * (width + 1); 
+    *end = *start + width;
+  }else{
+    *start = leftOver * (width + 1) + (id - leftOver) * width;
+    *end = *start + width -1 ;
+  }
+  width = *end - *start + 1;
+  if(width == 0){
+    char errorMessage[30];
+    sprintf(errorMessage, "rank %d has 0 work to do!", rank);
+    err_out(errorMessage);
+  }
+
+}
+
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
@@ -224,7 +244,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
   	double inter_time = 0;
   	int rank = 0;
   	int nprocs = 0;
-	MPI_Request requests[8];
+    MPI_Request requests[8];
 
  	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -238,7 +258,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
 	int width, height, xstart, xend, ystart, yend;
 	//buffers for doing p2p ops
-	double* topBuffer, *downBuffer, *rightBuffer, *leftBuffer;
+	double* topBuffer, *downBuffer, *rightBuffer, *leftBuffer, *myValues;
 	if (gridSize){
 		divide_cores(nprocs, &coresX, &coresY);
 		myIDX = rank % coresX;
@@ -262,13 +282,14 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		int valueBufferSize = MAX(width, height) * RADIUS;
 		//initialize an array with the values to be sent to other nodes
 		//the values we send and recieve are the rank numbers
-		double* myValues = (double*) myAlloc(valueBufferSize * sizeof(double));
+		myValues = (double*) myAlloc(valueBufferSize * sizeof(double));
 		for(int i=0; i < valueBufferSize; i++){
 			myValues[i] = double(rank);
 		}
 		
-		toBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
-		downBuffer = topBuffer + width * RADIUS	leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
+		topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
+		downBuffer = topBuffer + width * RADIUS;
+    leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
 		rightBuffer = leftBuffer + height * RADIUS;
 	}
 	rank_start_time = MPI_Wtime();
