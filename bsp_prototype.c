@@ -1,8 +1,10 @@
 /*
- * Copyright 2019. Keira Haskins and Patrick G. Bridges, University of New Mexico
+ * Copyright 2019. Sahba Tashakkori, Keira Haskins and Patrick G. Bridges, University of New Mexico
  * Copyright 2015. Oscar Mondragon
  * bsp_prototype.c (previously appGen.c)
- * Description:
+ * Description: 
+ * For the stencil part, parts of the code are slight modification of Jeff Hammonds codebase 'PRK Stencil'
+ * https://github.com/jeffhammond/PRK
  *
  */
 
@@ -15,7 +17,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <openssl/ssl.h>
-
+#include <math.h>
 #include <getopt.h>
 
 #include <gsl/gsl_rng.h>
@@ -31,6 +33,11 @@
 #include <time.h>
 #include <sys/time.h>
 
+//Stencil Radius
+#define RADIUS 1
+#define SECOND_TO_MICRO_FACTOR 1000000
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 /*
  * If distribution is:
  * exponential,    a = interarrival mean
@@ -41,18 +48,28 @@
  * constant    a = interarrival constant duration, b does not have effect
  */
 
+unsigned char DEBUG = 0;
 struct coll_time{
-  int rank;
-  double expected_sleep;
-  double start;
-  double end;
-  double sleep;
+	int rank;
+  	double expected_sleep;
+  	double start;
+  	double end;
+  	double sleep;
+	//for now we are keeping the time it takes for MPI_Waits to complete
+	//but they are not being written to the CSV
+	double stencilWait;
 };
 
-
+// a methods to exit in case of an error!
+void err_out(const char* errMessage){
+	if(errMessage){
+		fprintf(stderr, "%s\n", errMessage);
+	}
+	MPI_Finalize();
+}
 /* 
  * Code to sleep for a pre-determined about of time on an x86_64 system as
- * closely as possible by busy-waiting on the time stamp counter 
+ * closely as possible by busy-waitng on the time stamp counter 
  */
 unsigned long long rdtsc(void)
 {
@@ -61,13 +78,31 @@ unsigned long long rdtsc(void)
   return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
+void* myAlloc(size_t size){
+	void* memory = malloc(size);
+	if (memory == NULL){
+		char buffer[50];
+		sprintf(buffer, "Unable to allocate memory of size %lu", size);
+		err_out(buffer);
+	}
+	return memory;
+}
+
+//dividing the cores into x and y
+void divide_cores(int ranks, int* coresX, int* coresY){
+for (*coresX=(int) (sqrt(ranks+1.0)); *coresX>0; (*coresX)--) {
+    if ((ranks%(*coresX)) == 0) {
+		 *coresY = ranks/(*coresX);
+		  break;
+	}
+  }
+}
+
 /*
  * get_clocks_per_nanosecond and sleep_rdtsc are based on code in
  * http://sci.tuomastonteri.fi/programming/cplus/x86timer
  */
-
-double
-get_clocks_per_nanosecond() {
+double get_clocks_per_nanosecond() {
 
   uint64_t bench1=0;
   uint64_t bench2=0;
@@ -166,66 +201,190 @@ unsigned long hash_string(char *str)
 
         return hash;
 }
+
+void divideLeftOver(const int rank, const int cores, const int gridSize, const int id,  int* start, int* end){
+  int width = gridSize / cores;
+  int leftOver = gridSize % cores;
+  if (id < leftOver){
+    *start = id * (width + 1); 
+    *end = *start + width;
+  }else{
+    *start = leftOver * (width + 1) + (id - leftOver) * width;
+    *end = *start + width -1 ;
+  }
+  width = *end - *start + 1;
+  if(width == 0){
+    char errorMessage[30];
+    sprintf(errorMessage, "rank %d has 0 work to do!", rank);
+    err_out(errorMessage);
+  }
+
+}
+
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
  * Log the desired local, actual local, and actual global sleep times
  * as we run for later output.
+ * Also if gridSize > 0, a gridsize * gridsize lattice is divided among the cores
+ * and the corse communicate "ghost cells" to their left, right, top, and bottom neighbors
+ * The purpose is to mimick a 2D stencil operation
  */
-int barrier_loop(double a, double b, char * distribution, int iterations, 
-		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
+
+int barrier_loop_stencil(double a, double b, char * distribution, int iterations, 
+		 struct coll_time * times_buffer, double cpn, gsl_rng *r, int gridSize)
 {
   	double coll_exp_sleep = 0.0;
   	double coll_start = 0.0;
   	double coll_end = 0.0;
   	double coll_sleep = 0.0;
-
+    double mpi_waitTime = 0.0;
   	double rank_start_time = 0.0;
-
   	int i;
   	double inter_time = 0;
   	int rank = 0;
   	int nprocs = 0;
+    MPI_Request requests[8];
 
- 	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  	MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
+ 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
   	enum rng_type rng_type = init_rng_type(distribution);
   	if (rng_type < 0) {
-      		return -1;
+      	return -1;
   	}
-
-  	rank_start_time = MPI_Wtime();
+	//variables for decomposing the grid!
+	int myIDX, myIDY, coresX, coresY;
+	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
+	int width, height, xstart, xend, ystart, yend;
+	//buffers for doing p2p ops
+	double* topBuffer, *downBuffer, *rightBuffer, *leftBuffer, *myValues;
+	if (gridSize){
+		divide_cores(nprocs, &coresX, &coresY);
+		myIDX = rank % coresX;
+		myIDY = rank / coresX;
+		myLeftNbr = rank - 1;
+		myRightNbr = rank + 1;
+		myTopNbr = rank + coresX;
+		myBottomNbr = rank - coresX;
+		if (rank == 0 && DEBUG){
+			printf("There are %d cores in x and %d cores in y\n", coresX, coresY);
+		}
+		if (DEBUG){
+			printf("I am rank %d, my IDX is %d my IDY is %d my left and right neighbors are %d %d and my top and bottom are %d %d\n",
+			 rank, myIDX, myIDY, myLeftNbr, myRightNbr, myTopNbr, myBottomNbr);
+		}
+		// We need to take care of left-overs. the end and start are both inclusive
+		divideLeftOver(rank, coresX, gridSize, myIDX, &xstart, &xend);
+		width = xend - xstart + 1;
+		divideLeftOver(rank, coresY, gridSize, myIDY, &ystart, &yend);
+		height = yend - ystart + 1;
+		int valueBufferSize = MAX(width, height) * RADIUS;
+		//initialize an array with the values to be sent to other nodes
+		//the values we send and recieve are the rank numbers
+		myValues = (double*) myAlloc(valueBufferSize * sizeof(double));
+		for(int i=0; i < valueBufferSize; i++){
+			myValues[i] = double(rank);
+		}
+		
+		topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
+		downBuffer = topBuffer + width * RADIUS;
+    leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
+		rightBuffer = leftBuffer + height * RADIUS;
+	}
+	rank_start_time = MPI_Wtime();
 
 	/* We start at -5 to do 5 warmup iterations that are recorded */
   	for( i = -5; i < iterations; i++) {
-    		inter_time = generate_interval_rng(r, rng_type, a, b);
+		if (gridSize){
+			//top bottom right left
+			if (myIDY < coresY - 1){
+				MPI_Irecv(topBuffer, width * RADIUS, MPI_DOUBLE, myTopNbr, 811, MPI_COMM_WORLD, &requests[0]);
+			}
+			if (myIDY > 0){
+				MPI_Irecv(downBuffer, width * RADIUS, MPI_DOUBLE, myBottomNbr, 823, MPI_COMM_WORLD, &requests[1]);
+			}
+			if (myIDX < coresX - 1){
+				MPI_Irecv(rightBuffer, height * RADIUS, MPI_DOUBLE, myRightNbr, 919, MPI_COMM_WORLD, &requests[2]);
+			}
+			if (myIDX > 0){
+				MPI_Irecv(leftBuffer, height * RADIUS, MPI_DOUBLE, myLeftNbr, 977, MPI_COMM_WORLD, &requests[3]);
+			}
+		}
+		//now sleep which counts as our computation
+		inter_time = generate_interval_rng(r, rng_type, a, b);
     
-    		assert(inter_time >= 0.0 );
+		assert(inter_time >= 0.0 );
 
-    		coll_sleep = MPI_Wtime();
-    		coll_exp_sleep = inter_time; // Pick a sleep length in microseconds
-    		if (inter_time > 0){
-			// This time is in nanoseconds, convert here
-        		sleep_rdtsc(1000  * inter_time, cpn);
-    		}
+		coll_sleep = MPI_Wtime();
+		coll_exp_sleep = inter_time;
+		if (inter_time > 0){
+			sleep_rdtsc(1000  * inter_time, cpn);
+		}
 
-    		coll_start = MPI_Wtime();
+		//now sends
+		if(gridSize){
+			if(myIDY > 0){
+				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myBottomNbr, 811, MPI_COMM_WORLD, &requests[5]);
+			}
+			if(myIDY < coresY - 1){		
+				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myTopNbr, 823, MPI_COMM_WORLD, &requests[4]);
+			}
+			if(myIDX > 0){
+				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myLeftNbr, 919, MPI_COMM_WORLD, &requests[7]);
+			}
+			if(myIDX < coresX - 1){
+				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[6]);
+			}
+			mpi_waitTime = MPI_Wtime();
+			//let the waiting begin!
+			if(myIDX > 0){
+				MPI_Wait(&requests[3], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[7] , MPI_STATUS_IGNORE);
+			}
+			if(myIDX < coresX -1){
+				MPI_Wait(&requests[2], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[6] , MPI_STATUS_IGNORE);
+			}
+			if(myIDY > 0){
+				MPI_Wait(&requests[1], MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[5] , MPI_STATUS_IGNORE);
+			}
+			if(myIDY < coresY -1){
+				MPI_Wait(&requests[0] , MPI_STATUS_IGNORE);
+				MPI_Wait(&requests[4], MPI_STATUS_IGNORE);
+			}
+			mpi_waitTime = MPI_Wtime() - mpi_waitTime;
+			mpi_waitTime *= SECOND_TO_MICRO_FACTOR;
+		}
+			coll_start = MPI_Wtime();
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
 
+    		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
+
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
-			// Record things in microseconds
-    			times_buffer[ i ].rank = rank;
-    			times_buffer[ i ].start = (coll_start - rank_start_time) * 1000000;
-    			times_buffer[ i ].end = (coll_end - rank_start_time) * 1000000;
-    			times_buffer[ i ].expected_sleep = coll_exp_sleep;
-    			times_buffer[ i ].sleep = (coll_sleep - rank_start_time) * 1000000;
-  		}
-	}
+			times_buffer[ i ].rank = rank;
+			times_buffer[ i ].start = (unsigned long) coll_start;
+			times_buffer[ i ].end =  (unsigned long) coll_end;
+			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
+			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
+			if (gridSize){
+				times_buffer[i].stencilWait = (unsigned long) mpi_waitTime;
+			}
+		}
+	}// end of main loop
+	//freeing the bufferes used for MPI exchange operations
+	free(topBuffer);
+	free(leftBuffer);
+	free(myValues);
   	return 0;
 }
+
 
 void write_buffer(double a, double b, char * distribution, int iterations, 
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
@@ -289,13 +448,15 @@ static struct option longargs[] =
 	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
+	{"stencil", required_argument, 0, 't'},
+	{"debug", no_argument, 0, 'g'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:rs:h";
+static char *shortargs = (char *)"a:b:d:i:s:n:t:hgr";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-r] filename\n", progname);
+	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t gridsize] [-r] [-g] filename\n", progname);
 	return;
 }
 
@@ -307,10 +468,11 @@ int main(int argc, char *argv[])
 	char *outfile = NULL;
 	int optindex;
 	char c;
+	int grid_Size=0;
 
 	MPI_Init(&argc,&argv);
-  	MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
-  	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+  	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	for (int i = 0; i < argc; i++)
 		printf("%s ", argv[i]);
@@ -333,21 +495,27 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
-		case 'r':
-			reducedout = 1;
-			break;
+			case 'r':
+				reducedout = 1;
+				break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
           		break;
-		case 'h':
-			usage(argv[0]);
-			exit(0);
-			break;
-        	case '?':
-        	default:
+			case 'h':
+				usage(argv[0]);
+				exit(0);
+				break;
+			case 't':
+				sscanf(optarg, "%d", &grid_Size);
+				break;
+      		case 'g':
+        		DEBUG = 1;
+        		break;
+      		case '?':
+      		default:
           		/* getopt_long already printed an error message. */
-			usage(argv[0]);
-			exit(-1);
+				usage(argv[0]);
+				exit(-1);
           		break;
 		}
 	} 
@@ -378,15 +546,18 @@ int main(int argc, char *argv[])
   	r = gsl_rng_alloc (gsl_rng_sprng50);
 
   	double cpn = get_clocks_per_nanosecond();
-  	struct coll_time *times_buffer =
-		(struct coll_time *)calloc(iterations, sizeof(struct coll_time));
+  	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
-  	ret = barrier_loop(a, b, distribution, iterations, times_buffer, 
-			   cpn, r);
-  	if (!ret && ((rank == 0) || !reducedout))
+	if (grid_Size <= 0){
+  		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, 0);
+	}else{
+		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, grid_Size);
+	}
+
+  	if (!ret && ((rank == 0) || !reducedout)){
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
 			     outfile);
-
+	  }
 	free(times_buffer);
   	free(r);
 
