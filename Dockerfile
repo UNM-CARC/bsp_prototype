@@ -8,6 +8,10 @@ ARG DOCKER_TAG=latest
 ARG BASE_IMAGE=qwofford/docker_ldms:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
 
+# Because we use spack and a cleaned environment, the run commands here
+# need to be login shells to get the appropriate spack initialiation.
+SHELL ["/bin/bash", "-l", "-c"]
+
 # We force our current prototype of the sprng package into the spack
 # repo on this container to try it out for now. ONce it's added to an
 # actual spack repository (e.g. the CARC one), we'll just pull it from 
