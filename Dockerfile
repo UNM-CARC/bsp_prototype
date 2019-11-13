@@ -5,7 +5,7 @@
 # BASE_IMAGE variable instead.
 
 ARG DOCKER_TAG=latest
-ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
+ARG BASE_IMAGE=qwofford/docker_ldms:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
 
 # We force our current prototype of the sprng package into the spack
