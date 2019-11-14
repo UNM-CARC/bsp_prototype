@@ -9,7 +9,7 @@ export OUTFILE=`mktemp /tmp/results/${HOST}_XXXXXXXX.csv`
 export LDMS_INSTALL_PATH=/usr/local
 export LDMS_MPI_PROFILER_LIB_NAME=libldms_mpi_profiler.so
 export LDMS_MPI_PROFILER_PATH=$LDMS_INSTALL_PATH/lib/ovis-ldms/$LDMS_MPI_PROFILER_LIB_NAME
-export LD_PRELOAD=/usr/lib64/openmpi3/lib/libmpi.so:$LDMS_MPI_PROFILER_PATH
+export LD_PRELOAD=/usr/local/lib/libmpi.so:$LDMS_MPI_PROFILER_PATH
 
 # Launch ldms sampler
 /opt/ldms_wheeler/start_sampler.sh
