@@ -289,7 +289,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		
 		topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
 		downBuffer = topBuffer + width * RADIUS;
-    leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
+    	leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
 		rightBuffer = leftBuffer + height * RADIUS;
 	}
 	rank_start_time = MPI_Wtime();
@@ -379,10 +379,12 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
-	free(topBuffer);
-	free(leftBuffer);
-	free(myValues);
-  	return 0;
+	if(gridSize){
+		free(topBuffer);
+		free(leftBuffer);
+		free(myValues);
+	}
+	return 0;
 }
 
 
