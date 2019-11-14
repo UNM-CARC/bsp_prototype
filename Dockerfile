@@ -4,13 +4,16 @@
 # set the base image used for building can control this by setting the 
 # BASE_IMAGE variable instead.
 
-ARG DOCKER_TAG=latest
+ARG DOCKER_TAG=carc-wheeler
 ARG BASE_IMAGE=qwofford/docker_ldms:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
-
 # Because we use spack and a cleaned environment, the run commands here
 # need to be login shells to get the appropriate spack initialiation.
 SHELL ["/bin/bash", "-l", "-c"]
+RUN spack env activate -d /home/docker
+# All commands will run relative to this WORKDIR
+WORKDIR /home/docker
+
 
 # We force our current prototype of the sprng package into the spack
 # repo on this container to try it out for now. ONce it's added to an
@@ -22,7 +25,6 @@ COPY sprng.py /opt/spack/var/spack/repos/builtin/packages/sprng/package.py
 
 # Add the new packages we want to the environment and regenerate its
 # view in /usr/local
-WORKDIR /home/docker
 RUN spack add sprng gsl \
     && spack concretize \
     && spack install \
