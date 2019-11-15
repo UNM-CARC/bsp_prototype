@@ -10,6 +10,8 @@ export LDMS_INSTALL_PATH=/usr/local
 export LDMS_MPI_PROFILER_LIB_NAME=libldms_mpi_profiler.so
 export LDMS_MPI_PROFILER_PATH=$LDMS_INSTALL_PATH/lib/ovis-ldms/$LDMS_MPI_PROFILER_LIB_NAME
 export LD_PRELOAD=/usr/local/lib/libmpi.so:$LDMS_MPI_PROFILER_PATH
+# Choose mpi functions to sample
+export LDMS_SHM_MPI_FUNC_INCLUDE="MPI_Send,MPI_Recv,MPI_Barrier,MPI_Isend,MPI_Irecv,MPI_Wait"
 
 # Launch ldms sampler
 /opt/ldms_wheeler/start_sampler.sh
