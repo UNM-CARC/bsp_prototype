@@ -13,12 +13,8 @@ export LD_PRELOAD=/usr/local/lib/libmpi.so:$LDMS_MPI_PROFILER_PATH
 # Choose mpi functions to sample
 export LDMS_SHM_MPI_FUNC_INCLUDE="MPI_Send,MPI_Recv,MPI_Barrier,MPI_Isend,MPI_Irecv,MPI_Wait"
 
-# Launch ldms sampler
-/opt/ldms_wheeler/start_sampler.sh
 # Launch workload
-/home/docker/bsp_prototype "$@" ${OUTFILE}
+mpirun -n $PBS_NP -mca pml ucx --mca btl ^vader,tcp,openib,uct -x UCX_NET_DEVICES=mlx4_0:1 -x MPI_RUN_COMMAND -x PBS_O_HOST -x LDMS_SHM_MPI_FUNC_INCLUDE -x PBS_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD_CONTAINER -machinefile $PBS_NODEFILE /home/docker/bsp_prototype "$@" ${OUTFILE}
 # Clean up results
 mv ${OUTFILE} /results/
-# Kill ldms sampler
-kill $(ps aux | grep ldms | grep -v grep | awk '{print $2}')
 exit "$?"
