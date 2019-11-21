@@ -419,20 +419,20 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 #endif
 	    fprintf( f_time,
 		     "{ "
-		     " ""uniq_id"": %s, "
-		     " ""rank"": %d, "
-		     " ""iteration"": %d, "
-		     " ""distribution"": %s, "
-		     " ""a"": %f, "
-		     " ""b"": %f, "
-		     " ""iterations"": %d, "
-		     " ""sleep_start"": %.3lf, "
-		     " ""wait_start"": %.3lf, "
-		     " ""barrier_start"": %.3lf, "
-		     " ""barrier_end"": %.3lf, "
-		     " ""expected_sleep_usec"": %.3lf, "
-		     " ""actual_sleep_usec"": %.3lf "
-		     " }\n",
+		     " \"uniq_id\": \"%s\", "
+		     " \"rank\": %d, "
+		     " \"iteration\": %d, "
+		     " \"distribution\": \"%s\", "
+		     " \"a\": %f, "
+		     " \"b\": %f, "
+		     " \"iterations\": %d, "
+		     " \"sleep_start\": %.3lf, "
+		     " \"wait_start\": %.3lf, "
+		     " \"barrier_start\": %.3lf, "
+		     " \"barrier_end\": %.3lf, "
+		     " \"expected_sleep_usec\": %.3lf, "
+		     " \"actual_sleep_usec\": %.3lf "
+		     " },\n",
 		     experimentID, rank, i,
 		     distribution, a, b, iterations, 
 		     times_buffer[i].sleep         ,
