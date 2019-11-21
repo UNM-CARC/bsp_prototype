@@ -52,8 +52,9 @@ unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
   	double expected_sleep;
-  	double start;
-  	double end;
+	double wait;
+  	double bstart;
+  	double bend;
   	double sleep;
 	//for now we are keeping the time it takes for MPI_Waits to complete
 	//but they are not being written to the CSV
@@ -236,6 +237,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		 struct coll_time * times_buffer, double cpn, gsl_rng *r, int gridSize)
 {
   	double coll_exp_sleep = 0.0;
+  	double waitall_start = 0.0;
   	double coll_start = 0.0;
   	double coll_end = 0.0;
   	double coll_sleep = 0.0;
@@ -245,10 +247,13 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
   	double inter_time = 0;
   	int rank = 0;
   	int nprocs = 0;
-    MPI_Request requests[8];
+    	MPI_Request requests[8];
 
  	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+	for (i = 0; i < 8; i++)
+		requests[i] = MPI_REQUEST_NULL;
 
   	enum rng_type rng_type = init_rng_type(distribution);
   	if (rng_type < 0) {
@@ -290,7 +295,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		
 		topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
 		downBuffer = topBuffer + width * RADIUS;
-    	leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
+    		leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
 		rightBuffer = leftBuffer + height * RADIUS;
 	}
 	rank_start_time = MPI_Wtime();
@@ -322,7 +327,7 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		if (inter_time > 0){
 			sleep_rdtsc(1000  * inter_time, cpn);
 		}
-
+		waitall_start = MPI_Wtime();
 		//now sends
 		if(gridSize){
 			if(myIDY > 0){
@@ -337,31 +342,13 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 			if(myIDX < coresX - 1){
 				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[6]);
 			}
-			mpi_waitTime = MPI_Wtime();
-			//let the waiting begin!
-			if(myIDX > 0){
-				MPI_Wait(&requests[3], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[7] , MPI_STATUS_IGNORE);
-			}
-			if(myIDX < coresX -1){
-				MPI_Wait(&requests[2], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[6] , MPI_STATUS_IGNORE);
-			}
-			if(myIDY > 0){
-				MPI_Wait(&requests[1], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[5] , MPI_STATUS_IGNORE);
-			}
-			if(myIDY < coresY -1){
-				MPI_Wait(&requests[0] , MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[4], MPI_STATUS_IGNORE);
-			}
-			mpi_waitTime = MPI_Wtime() - mpi_waitTime;
-			mpi_waitTime *= SECOND_TO_MICRO_FACTOR;
+			MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
 		}
-			coll_start = MPI_Wtime();
+		coll_start = MPI_Wtime();
     		MPI_Barrier(MPI_COMM_WORLD);
     		coll_end = MPI_Wtime();
-
+		
+    		waitall_start =  ( waitall_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
@@ -369,10 +356,11 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
 			times_buffer[ i ].rank = rank;
-			times_buffer[ i ].start = (unsigned long) coll_start;
-			times_buffer[ i ].end =  (unsigned long) coll_end;
-			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
-			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
+			times_buffer[ i ].wait = waitall_start;
+			times_buffer[ i ].bstart = coll_start;
+			times_buffer[ i ].bend =  coll_end;
+			times_buffer[ i ].expected_sleep = coll_exp_sleep;
+			times_buffer[ i ].sleep = coll_sleep;
 			if (gridSize){
 				times_buffer[i].stencilWait = (unsigned long) mpi_waitTime;
 			}
@@ -428,10 +416,10 @@ void write_buffer(double a, double b, char * distribution, int iterations,
     		fprintf(f_time, "%d,", iterations);
     		fprintf(f_time, "%.3lf,%.3lf,%.3lf,%.3lf,%.3lf",
         			times_buffer[i].sleep         ,
-        			times_buffer[i].start         ,
-        			times_buffer[i].end           ,
+        			times_buffer[i].bstart         ,
+        			times_buffer[i].bend           ,
         			times_buffer[i].expected_sleep,
-        			times_buffer[i].start - times_buffer[i].sleep);
+        			times_buffer[i].bstart - times_buffer[i].sleep);
     		fprintf(f_time, "\n");
 	  } else {
 #endif
@@ -444,19 +432,21 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 		     " ""a"": %f, "
 		     " ""b"": %f, "
 		     " ""iterations"": %d, "
-		     " ""sleep_start"": %lu, "
-		     " ""barrier_start"": %lu, "
-		     " ""barrier_end"": %lu, "
-		     " ""expected_sleep_usec"": %lu, "
-		     " ""actual_sleep_usec"": %lu "
+		     " ""sleep_start"": %.3lf, "
+		     " ""wait_start"": %.3lf, "
+		     " ""barrier_start"": %.3lf, "
+		     " ""barrier_end"": %.3lf, "
+		     " ""expected_sleep_usec"": %.3lf, "
+		     " ""actual_sleep_usec"": %.3lf "
 		     " }\n",
 		     experimentID, rank, i,
 		     distribution, a, b, iterations, 
 		     times_buffer[i].sleep         ,
-		     times_buffer[i].start         ,
-		     times_buffer[i].end           ,
+		     times_buffer[i].wait          ,
+		     times_buffer[i].bstart         ,
+		     times_buffer[i].bend           ,
 		     times_buffer[i].expected_sleep,
-		     times_buffer[i].start - times_buffer[i].sleep );
+		     times_buffer[i].bstart - times_buffer[i].sleep );
   	}
   	fclose(f_time);
 }
