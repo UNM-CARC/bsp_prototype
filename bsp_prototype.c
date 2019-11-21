@@ -444,11 +444,11 @@ void write_buffer(double a, double b, char * distribution, int iterations,
 		     " ""a"": %f, "
 		     " ""b"": %f, "
 		     " ""iterations"": %d, "
-		     " ""sleep_start"": %lu, "
-		     " ""barrier_start"": %lu, "
-		     " ""barrier_end"": %lu, "
-		     " ""expected_sleep_usec"": %lu, "
-		     " ""actual_sleep_usec"": %lu "
+		     " ""sleep_start"": %.3lf, "
+		     " ""barrier_start"": %.3lf, "
+		     " ""barrier_end"": %.3lf, "
+		     " ""expected_sleep_usec"": %.3lf, "
+		     " ""actual_sleep_usec"": %.3lf "
 		     " }\n",
 		     experimentID, rank, i,
 		     distribution, a, b, iterations, 
