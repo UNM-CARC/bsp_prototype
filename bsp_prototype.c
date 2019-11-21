@@ -56,9 +56,6 @@ struct coll_time{
   	double bstart;
   	double bend;
   	double sleep;
-	//for now we are keeping the time it takes for MPI_Waits to complete
-	//but they are not being written to the CSV
-	double stencilWait;
 };
 
 // a methods to exit in case of an error!
@@ -361,9 +358,6 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 			times_buffer[ i ].bend =  coll_end;
 			times_buffer[ i ].expected_sleep = coll_exp_sleep;
 			times_buffer[ i ].sleep = coll_sleep;
-			if (gridSize){
-				times_buffer[i].stencilWait = (unsigned long) mpi_waitTime;
-			}
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
