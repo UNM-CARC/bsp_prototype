@@ -35,3 +35,5 @@ To pull data from a given openss database run: "./extract\_data.sh <OUTPUTDIR> .
 
 Currently there already exists a file under output names "0", still in the process of developing a better 
 way to name experiments from the openspeedshop database. (This is the CSV ouput from the above command.
+
+Sahba is adding a stencil operation to the code
