@@ -364,7 +364,6 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
     		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
 
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
