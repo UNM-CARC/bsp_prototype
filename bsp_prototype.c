@@ -316,7 +316,6 @@ int barrier_loop_stencil(double a, double b, char * distribution, int iterations
 		}
 		//now sleep which counts as our computation
 		inter_time = generate_interval_rng(r, rng_type, a, b);
-    
 		assert(inter_time >= 0.0 );
 
 		coll_sleep = MPI_Wtime();
@@ -398,50 +397,39 @@ void write_buffer(double a, double b, char * distribution, int iterations,
                   MPI_CHAR, root, MPI_COMM_WORLD);
 
 	/* Print the logged data to the local data file */
+	fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
-#ifdef SWITCHED_TO_JSON
-	  if( !json_output ) {
-		fprintf(f_time, "%s,", experimentID);
-    		fprintf(f_time, "%d,", rank);
-   		fprintf(f_time, "%d,", i);
-    		fprintf(f_time, "%s,", distribution);
-    		fprintf(f_time, "%f,", a);
-    		fprintf(f_time, "%f,", b);
-    		fprintf(f_time, "%d,", iterations);
-    		fprintf(f_time, "%.3lf,%.3lf,%.3lf,%.3lf,%.3lf",
-        			times_buffer[i].sleep         ,
-        			times_buffer[i].bstart         ,
-        			times_buffer[i].bend           ,
-        			times_buffer[i].expected_sleep,
-        			times_buffer[i].bstart - times_buffer[i].sleep);
-    		fprintf(f_time, "\n");
-	  } else {
-#endif
-	    fprintf( f_time,
-		     "{ "
-		     " \"uniq_id\": \"%s\", "
-		     " \"rank\": %d, "
-		     " \"iteration\": %d, "
-		     " \"distribution\": \"%s\", "
-		     " \"a\": %f, "
-		     " \"b\": %f, "
-		     " \"iterations\": %d, "
-		     " \"sleep_start\": %.3lf, "
-		     " \"wait_start\": %.3lf, "
-		     " \"barrier_start\": %.3lf, "
-		     " \"barrier_end\": %.3lf, "
-		     " \"expected_sleep_usec\": %.3lf, "
-		     " \"actual_sleep_usec\": %.3lf "
-		     " },\n",
-		     experimentID, rank, i,
-		     distribution, a, b, iterations, 
-		     times_buffer[i].sleep         ,
-		     times_buffer[i].wait          ,
-		     times_buffer[i].bstart         ,
-		     times_buffer[i].bend           ,
-		     times_buffer[i].expected_sleep,
-		     times_buffer[i].bstart - times_buffer[i].sleep );
+	    	fprintf( f_time,
+			"{ "
+		     	" \"uniq_id\": \"%s\", "
+		     	" \"rank\": %d, "
+		     	" \"iteration\": %d, "
+		     	" \"distribution\": \"%s\", "
+		     	" \"a\": %f, "
+		     	" \"b\": %f, "
+		     	" \"iterations\": %d, "
+		    	" \"sleep_start\": %.3lf, "
+		     	" \"wait_start\": %.3lf, "
+		     	" \"barrier_start\": %.3lf, "
+		     	" \"barrier_end\": %.3lf, "
+		     	" \"expected_sleep_usec\": %.3lf, "
+		     	" \"actual_sleep_usec\": %.3lf "
+		     	" }",
+		     	experimentID, rank, i,
+		     	distribution, a, b, iterations, 
+		     	times_buffer[i].sleep         ,
+		     	times_buffer[i].wait          ,
+		     	times_buffer[i].bstart         ,
+		     	times_buffer[i].bend           ,
+		     	times_buffer[i].expected_sleep,
+		     	times_buffer[i].bstart - times_buffer[i].sleep );
+		if (i + 1 < iterations) {
+			fprintf(f_time, ",\n");
+		} else {
+			fprintf(f_time, "\n");
+		}
   	}
+	fprintf(f_time, "]\n");
   	fclose(f_time);
 }
 
@@ -449,19 +437,19 @@ static char distribution[256] = "gaussian";
 static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
-static unsigned int reducedout = 0;
+static unsigned int verbose = 1;
 
 static struct option longargs[] =
 {
 	{"a", required_argument, 0, 'a'},
 	{"b", required_argument, 0, 'b'},
 	{"distribution", required_argument, 0, 'd'},
+	{"debug", no_argument, 0, 'g'},
 	{"iterations", required_argument, 0, 'i'},
-	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
-	{"debug", no_argument, 0, 'g'},
+	{"reduced", no_argument, 0, 'r'},
 	{0, 0, 0, 0}
 };
 
@@ -509,27 +497,27 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
-			case 'r':
-				reducedout = 1;
-				break;
+		case 'r':
+			verbose = 0;
+			break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
           		break;
-			case 'h':
-				usage(argv[0]);
-				exit(0);
-				break;
-			case 't':
-				sscanf(optarg, "%d", &grid_Size);
-				break;
+		case 'h':
+			usage(argv[0]);
+			exit(0);
+			break;
+		case 't':
+			sscanf(optarg, "%d", &grid_Size);
+			break;
       		case 'g':
         		DEBUG = 1;
         		break;
       		case '?':
       		default:
           		/* getopt_long already printed an error message. */
-				usage(argv[0]);
-				exit(-1);
+			usage(argv[0]);
+			exit(-1);
           		break;
 		}
 	} 
@@ -563,15 +551,17 @@ int main(int argc, char *argv[])
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
 	if (grid_Size <= 0){
-  		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, 0);
-	}else{
-		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, grid_Size);
+  		ret = barrier_loop_stencil(a, b, distribution, iterations, 
+					   times_buffer, cpn, r, 0);
+	} else {
+		ret = barrier_loop_stencil(a, b, distribution, iterations, 
+					   times_buffer, cpn, r, grid_Size);
 	}
 
-  	if (!ret && ((rank == 0) || !reducedout)){
+  	if (!ret && ((rank == 0) || verbose)){
 		write_buffer(a, b, distribution, iterations, times_buffer, r,
 			     outfile);
-	  }
+	}
 	free(times_buffer);
   	free(r);
 
