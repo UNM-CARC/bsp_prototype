@@ -355,7 +355,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
   	int i;
 	int length = 13;
 
-  	f_time = fopen(outfile, "a");
+  	f_time = fopen(outfile, "w");
 
 	/* Share the experiment ID across ranks */
   	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -374,16 +374,19 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 	/* Print the logged data to the local data file */
 	fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
-	    	fprintf( f_time,
-			"{ "
-		     	" \"uniq_id\": \"%s\", "
+	    	fprintf( f_time, "{ " );
+		fprintf( f_time, " \"uniq_id\": \"%s\", "
 		     	" \"rank\": %d, "
 		     	" \"iteration\": %d, "
 		     	" \"distribution\": \"%s\", "
 		     	" \"a\": %f, "
 		     	" \"b\": %f, "
 			" \"stencil_size\": %d, "
-		     	" \"iterations\": %d, "
+		     	" \"iterations\": %d, ",
+		     	experimentID, rank, i,
+		     	distribution, a, b, stencil_size, iterations
+			);
+		fprintf( f_time, 
 		    	" \"sleep_start\": %.3lf, "
 		     	" \"wait_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
@@ -391,8 +394,6 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"expected_sleep_usec\": %.3lf, "
 		     	" \"actual_sleep_usec\": %.3lf "
 		     	" }",
-		     	experimentID, rank, i,
-		     	distribution, a, b, stencil_size, iterations, 
 		     	times_buffer[i].sleep         ,
 		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
@@ -531,7 +532,7 @@ int main(int argc, char *argv[])
 			   times_buffer, cpn, r);
 
   	if (!ret && ((rank == 0) || verbose)){
-		write_buffer(a, b, distribution, iterations, stencil_size, times_buffer, r,
+		write_buffer(a, b, distribution, stencil_size, iterations, times_buffer, r,
 			     outfile);
 	}
 	free(times_buffer);
