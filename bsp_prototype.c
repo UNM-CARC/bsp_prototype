@@ -48,7 +48,7 @@
  * constant    a = interarrival constant duration, b does not have effect
  */
 
-MPI_Comm my_comm = MPI_COMM_WORLD;
+MPI_Comm my_comm = 0;
 unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
@@ -237,6 +237,7 @@ int setup_stencil(int stencil_size, int *left, int *right, int *up, int *down,
 	int rank, nprocs;
 
 	grid[0] = 0; grid[1] = 0;
+  	MPI_Comm_size(my_comm, &nprocs);
 	MPI_Dims_create(nprocs, 2, grid);
 	if (rank == 0 && DEBUG){
 		printf("There are %d cores in x and %d cores in y\n", grid[0], grid[1]);
@@ -316,9 +317,6 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
  	MPI_Comm_rank(my_comm, &rank);
   	MPI_Comm_size(my_comm, &nprocs);
 
-	if (stencil_size) {
-	}
-
 	rank_start_time = MPI_Wtime();
 
 	/* We start at -5 to do 5 warmup iterations that are recorded */
@@ -378,7 +376,6 @@ char experimentID[20];
 void set_experiment_id(gsl_rng *r)
 {
 	const char *str = "0123456789abcdef";
-	char experimentID[20];
   	int root = 0;
 	int length = 13;
 	int rank;
@@ -444,6 +441,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	times_buffer[i].bend           ,
 		     	times_buffer[i].expected_sleep,
 		     	times_buffer[i].bstart - times_buffer[i].sleep );
+
 		if (i + 1 < iterations) {
 			fprintf(f_time, ",\n");
 		} else {
@@ -494,8 +492,9 @@ int main(int argc, char *argv[])
 	int stencil_size=0;
 
 	MPI_Init(&argc,&argv);
-  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-  	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	my_comm = MPI_COMM_WORLD;
+  	MPI_Comm_size(my_comm, &nprocs);
+  	MPI_Comm_rank(my_comm, &rank);
 
 	for (int i = 0; i < argc; i++)
 		printf("%s ", argv[i]);
