@@ -48,6 +48,7 @@
  * constant    a = interarrival constant duration, b does not have effect
  */
 
+MPI_Comm my_comm = MPI_COMM_WORLD;
 unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
@@ -223,6 +224,54 @@ void divideLeftOver(const int rank, const int cores, const int gridSize, const i
 }
 */
 
+
+/*
+ * Set up communicator and directions for stencil communication
+ */
+int setup_stencil(int stencil_size, int *left, int *right, int *up, int *down, 
+		  double **left_buf, double **right_buf, double **up_buf, double **down_buf,
+		  double **values)
+{
+	int grid[2];
+	int period[2] = {1, 1};
+	int rank, nprocs;
+
+	grid[0] = 0; grid[1] = 0;
+	MPI_Dims_create(nprocs, 2, grid);
+	if (rank == 0 && DEBUG){
+		printf("There are %d cores in x and %d cores in y\n", grid[0], grid[1]);
+	}
+	period[0] = 1; period[1] = 1;
+	MPI_Cart_create(MPI_COMM_WORLD, 2, grid, period, 1, &my_comm);
+
+ 	MPI_Comm_rank(my_comm, &rank);
+  	MPI_Comm_size(my_comm, &nprocs);
+
+	MPI_Cart_shift(my_comm, 0, -1, &rank, left);
+	MPI_Cart_shift(my_comm, 0, 1, &rank, right);
+	MPI_Cart_shift(my_comm, 1, -1, &rank, down);
+	MPI_Cart_shift(my_comm, 1, 1, &rank, up);
+
+	*values = (double*) myAlloc(4 * stencil_size * sizeof(double));
+	for(int i=0; i < 4*stencil_size; i++){
+		(*values)[i] = double(rank);
+	}
+	*up_buf = (double*) myAlloc(stencil_size * 2 * sizeof(double));
+	*down_buf = *up_buf + stencil_size;
+    	*left_buf = (double*) myAlloc(stencil_size * 2 * sizeof(double));
+	*right_buf = *left_buf + stencil_size;
+
+	return 0;
+}
+
+int tear_down_stencil(double *right, double *left, double *up, double *down, double *val)
+{
+	free(up);
+	free(left);
+	free(val);
+	return 0;
+}
+
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
@@ -246,9 +295,8 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	int rank = 0;
   	int nprocs = 0;
     	MPI_Request requests[8];
-	MPI_Comm my_comm = MPI_COMM_WORLD;
- 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+	int left_rank, right_rank, up_rank, down_rank;
+	double *left_buf, *right_buf, *up_buf, *down_buf, *values;
 
 	for (i = 0; i < 8; i++)
 		requests[i] = MPI_REQUEST_NULL;
@@ -257,45 +305,30 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	if (rng_type < 0) {
       		return -1;
   	}
-	//variables for decomposing the grid!
-	//buffers for doing p2p ops
-	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
-	double* topBuffer, *downBuffer, *rightBuffer, *leftBuffer, *myValues;
+	
+	// If we're going to be doing a stencil, set up the cartesian communivator
+	// we will use.
 	if (stencil_size){
-		int grid[2];
-		int period[2] = {1, 1};
-		grid[0] = 0; grid[1] = 0;
-		MPI_Dims_create(nprocs, 2, grid);
-		if (rank == 0 && DEBUG){
-			printf("There are %d cores in x and %d cores in y\n", grid[0], grid[1]);
-		}
-		period[0] = 1; period[1] = 1;
-		MPI_Cart_create(MPI_COMM_WORLD, 2, grid, period, 1, &my_comm);
- 		MPI_Comm_rank(my_comm, &rank);
-		MPI_Cart_shift(my_comm, 0, -1, &rank, &myLeftNbr);
-		MPI_Cart_shift(my_comm, 1, -1, &rank, &myBottomNbr);
-		MPI_Cart_shift(my_comm, 0, 1, &rank, &myRightNbr);
-		MPI_Cart_shift(my_comm, 1, 1, &rank, &myTopNbr);
-		
-		myValues = (double*) myAlloc(4 * stencil_size * sizeof(double));
-		for(int i=0; i < 4*stencil_size; i++){
-			myValues[i] = double(rank);
-		}
-		topBuffer = (double*) myAlloc(stencil_size * 2 * sizeof(double));
-		downBuffer = topBuffer + stencil_size;
-    		leftBuffer = (double*) myAlloc(stencil_size * 2 * sizeof(double));
-		rightBuffer = leftBuffer + stencil_size;
+		setup_stencil(stencil_size, &left_rank, &right_rank, &up_rank, &down_rank,
+			      &left_buf, &right_buf, &up_buf, &down_buf, &values);
+	} 
+
+ 	MPI_Comm_rank(my_comm, &rank);
+  	MPI_Comm_size(my_comm, &nprocs);
+
+	if (stencil_size) {
 	}
+
 	rank_start_time = MPI_Wtime();
 
 	/* We start at -5 to do 5 warmup iterations that are recorded */
   	for( i = -5; i < iterations; i++) {
 		if (stencil_size){
 			//top bottom right left
-			MPI_Irecv(topBuffer, stencil_size, MPI_DOUBLE, myTopNbr, 811, MPI_COMM_WORLD, &requests[0]);
-			MPI_Irecv(downBuffer, stencil_size, MPI_DOUBLE, myBottomNbr, 823, MPI_COMM_WORLD, &requests[1]);
-			MPI_Irecv(rightBuffer, stencil_size, MPI_DOUBLE, myRightNbr, 919, MPI_COMM_WORLD, &requests[2]);
-			MPI_Irecv(leftBuffer, stencil_size, MPI_DOUBLE, myLeftNbr, 977, MPI_COMM_WORLD, &requests[3]);
+			MPI_Irecv(up_buf, stencil_size, MPI_DOUBLE, up_rank, 811, my_comm, &requests[0]);
+			MPI_Irecv(down_buf, stencil_size, MPI_DOUBLE, down_rank, 823, my_comm, &requests[1]);
+			MPI_Irecv(right_buf, stencil_size, MPI_DOUBLE, right_rank, 919, my_comm, &requests[2]);
+			MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
 		}
 		//now sleep which counts as our computation
 		inter_time = generate_interval_rng(r, rng_type, a, b);
@@ -309,10 +342,10 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		waitall_start = MPI_Wtime();
 		//now sends
 		if(stencil_size){
-			MPI_Isend(myValues, stencil_size, MPI_DOUBLE, myBottomNbr, 811, MPI_COMM_WORLD, &requests[4]);
-			MPI_Isend(myValues + stencil_size, stencil_size, MPI_DOUBLE, myTopNbr, 823, MPI_COMM_WORLD, &requests[5]);
-			MPI_Isend(myValues + 2*stencil_size, stencil_size, MPI_DOUBLE, myLeftNbr, 919, MPI_COMM_WORLD, &requests[6]);
-			MPI_Isend(myValues + 3*stencil_size, stencil_size, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[7]);
+			MPI_Isend(values, stencil_size, MPI_DOUBLE, down_rank, 811, my_comm, &requests[4]);
+			MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
+			MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
+			MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
 			MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
 		}
 		coll_start = MPI_Wtime();
@@ -336,30 +369,24 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
 	if(stencil_size){
-		free(topBuffer);
-		free(leftBuffer);
-		free(myValues);
+		tear_down_stencil(right_buf, left_buf, up_buf, down_buf, values);
 	}
 	return 0;
 }
 
-
-void write_buffer(double a, double b, char * distribution, int stencil_size, int iterations, 
-		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
+char experimentID[20];
+void set_experiment_id(gsl_rng *r)
 {
 	const char *str = "0123456789abcdef";
 	char experimentID[20];
-  	FILE *f_time;
-	int rank;
   	int root = 0;
-  	int i;
 	int length = 13;
-
-  	f_time = fopen(outfile, "w");
+	int rank;
 
 	/* Share the experiment ID across ranks */
-  	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  	MPI_Comm_rank(my_comm,&rank);
   	if (rank == 0) {
+		int i;
 		// We use GSL here, so we'll get a fixed experiment ID for a 
 		// fixed set of parameters, which is a good thing because it
 		// lets us consistently regenerate experiments.
@@ -369,24 +396,40 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
     		experimentID[i] = 0;
   	}
   	MPI_Bcast(&experimentID, sizeof(experimentID),
-                  MPI_CHAR, root, MPI_COMM_WORLD);
+                  MPI_CHAR, root, my_comm);
+	return;
+}
+
+
+void write_buffer(double a, double b, char * distribution, int stencil_size, int iterations, 
+		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
+{
+  	FILE *f_time;
+	int rank, nproc;
+  	int i;
+
+  	MPI_Comm_rank(my_comm,&rank);
+  	MPI_Comm_size(my_comm,&nproc);
 
 	/* Print the logged data to the local data file */
+  	f_time = fopen(outfile, "w");
 	fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
 	    	fprintf( f_time, "{ " );
 		fprintf( f_time, " \"uniq_id\": \"%s\", "
+			" \"communicator\": %lu, "
+			" \"comm_size\": %d, "
 		     	" \"rank\": %d, "
-		     	" \"iteration\": %d, "
 		     	" \"distribution\": \"%s\", "
 		     	" \"a\": %f, "
 		     	" \"b\": %f, "
 			" \"stencil_size\": %d, "
 		     	" \"iterations\": %d, ",
-		     	experimentID, rank, i,
+		     	experimentID, (unsigned long)my_comm, nproc, rank,
 		     	distribution, a, b, stencil_size, iterations
 			);
 		fprintf( f_time, 
+		     	" \"iteration\": %d, "
 		    	" \"sleep_start\": %.3lf, "
 		     	" \"wait_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
@@ -394,6 +437,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"expected_sleep_usec\": %.3lf, "
 		     	" \"actual_sleep_usec\": %.3lf "
 		     	" }",
+			i, 
 		     	times_buffer[i].sleep         ,
 		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
@@ -528,9 +572,11 @@ int main(int argc, char *argv[])
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
 	if (stencil_size < 0) stencil_size = 0;
+
   	ret = barrier_loop(a, b, distribution, stencil_size, iterations, 
 			   times_buffer, cpn, r);
 
+	set_experiment_id(r);
   	if (!ret && ((rank == 0) || verbose)){
 		write_buffer(a, b, distribution, stencil_size, iterations, times_buffer, r,
 			     outfile);
