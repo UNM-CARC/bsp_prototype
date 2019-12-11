@@ -56,9 +56,17 @@ struct coll_time{
 	double wait;
   	double bstart;
   	double bend;
-  	double expected_sleep;
-	double expected_max;
+	double workload_max;
 };
+
+enum bsp_workload {
+	WORKLOAD_SLEEP = 0,
+	WORKLOAD_DGEMM,
+	WORKLOAD_STREAM,
+	WORKLOAD_FBENCH,
+	WORKLOAD_IOR
+};
+enum bsp_workload workload = WORKLOAD_SLEEP;
 
 // a methods to exit in case of an error!
 void err_out(const char* errMessage){
@@ -274,6 +282,26 @@ int tear_down_stencil(double *right, double *left, double *up, double *down, dou
 	return 0;
 }
 
+
+/* Do one iteration of whatever comoute workload was requested */
+void run_workload(int w, gsl_rng *r, enum rng_type rng_type, double a, double b, double cpn)
+{
+  	double inter_time = 0;
+	switch(w) {
+	case WORKLOAD_SLEEP:
+		inter_time = generate_interval_rng(r, rng_type, a, b);
+		assert(inter_time >= 0.0 );
+		if (inter_time > 0){
+			sleep_rdtsc(1000  * inter_time, cpn);
+		}
+		break;
+	case WORKLOAD_DGEMM:
+		break;
+	default:
+		assert(0 && "Unknown workload!");
+	}
+}
+
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
@@ -286,14 +314,12 @@ int tear_down_stencil(double *right, double *left, double *up, double *down, dou
 int barrier_loop(double a, double b, char * distribution, int stencil_size, int iterations, 
 		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
 {
-  	double coll_exp_sleep = 0.0;
   	double waitall_start = 0.0;
   	double coll_start = 0.0;
   	double coll_bstart = 0.0;
   	double coll_bend = 0.0;
   	double rank_start_time = 0.0;
   	int i;
-  	double inter_time = 0;
   	int rank = 0;
   	int nprocs = 0;
     	MPI_Request requests[8];
@@ -330,14 +356,11 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 			MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
 		}
 		//now sleep which counts as our computation
-		inter_time = generate_interval_rng(r, rng_type, a, b);
-		assert(inter_time >= 0.0 );
 
 		coll_start = MPI_Wtime();
-		coll_exp_sleep = inter_time;
-		if (inter_time > 0){
-			sleep_rdtsc(1000  * inter_time, cpn);
-		}
+
+		run_workload(workload, r, rng_type, a, b, cpn);
+
 		waitall_start = MPI_Wtime();
 		//now sends
 		if(stencil_size){
@@ -363,7 +386,6 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 			times_buffer[ i ].wait = waitall_start;
 			times_buffer[ i ].bstart = coll_bstart;
 			times_buffer[ i ].bend =  coll_bend;
-			times_buffer[ i ].expected_sleep = coll_exp_sleep;
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
@@ -432,19 +454,17 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"wait_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
-		     	" \"expected_sleep_usec\": %.3lf, "
-		     	" \"actual_sleep_usec\": %.3lf "
-			" \"expected_max_usec\": %.3lf, "
-			" \"actual_max_usec\": %.3lf, "
+		     	" \"workload_usec\": %.3lf "
+			" \"workload_max_usec\": %.3lf, "
+			" \"interval_max_usec\": %.3lf, "
 		     	" }",
 			i, 
 		     	times_buffer[i].start         ,
 		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,
-		     	times_buffer[i].expected_sleep,
 		     	times_buffer[i].bstart - times_buffer[i].start,
-			times_buffer[i].expected_max,
+			times_buffer[i].workload_max,
 			times_buffer[i].bend - times_buffer[i].start );
 
 		if (i + 1 < iterations) {
@@ -463,6 +483,7 @@ static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
 static unsigned int verbose = 1;
 
+
 static struct option longargs[] =
 {
 	{"a", required_argument, 0, 'a'},
@@ -473,33 +494,34 @@ static struct option longargs[] =
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
-	{"reduced", no_argument, 0, 'r'},
+	{"verbose", no_argument, 0, 'v'},
+	{"workload", required_argument, 0, 'w'},
 	{0, 0, 0, 0}
 };
 
-static char *shortargs = (char *)"a:b:d:i:s:n:t:hgr";
+static char *shortargs = (char *)"a:b:d:i:n:s:t:hgvw:";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t stencil_size] [-r] [-g] filename\n", progname);
+	printf("usage: %s [-w workload-type] [-d distribution] [-a workload-aval] [-b workload-bval] [-i iterations] [-s initial seed] [-t stencil_size] [-v] [-g] filename\n", progname);
 
 	return;
 }
 
 
-void reduce_expected_max(struct coll_time *times_buffer, int iterations) 
+void reduce_workload_max(struct coll_time *times_buffer, int iterations) 
 {
-	double *expected_max = (double *)calloc(iterations, sizeof(double));
+	double *workload_max = (double *)calloc(iterations, sizeof(double));
 	/* First collect local data into the local buffer */
 	for (int i = 0; i < iterations; i++) {
-		expected_max[i] = times_buffer[i].bstart - times_buffer[i].start;
+		workload_max[i] = times_buffer[i].bstart - times_buffer[i].start;
 	}
 	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
-	MPI_Allreduce(expected_max, expected_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
+	MPI_Allreduce(workload_max, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	
 	/* And put the actual maxes collected back into the times buffer */
 	for (int i = 0; i < iterations; i++) {
-		times_buffer[i].expected_max = expected_max[i];
+		times_buffer[i].workload_max = workload_max[i];
 	}
 }
 
@@ -555,6 +577,18 @@ int main(int argc, char *argv[])
       		case 'g':
         		DEBUG = 1;
         		break;
+		case 'w':
+			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
+//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
+//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
+//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
+			else {
+				fprintf(stderr, "Unknown workload type %s.\n", optarg);
+				usage(argv[0]);
+				exit(0);
+			}
+			break;
       		case '?':
       		default:
           		/* getopt_long already printed an error message. */
@@ -599,7 +633,7 @@ int main(int argc, char *argv[])
 
 	set_experiment_id(r);
 
-	reduce_expected_max(times_buffer, iterations);
+	reduce_workload_max(times_buffer, iterations);
 
   	if (!ret && ((rank == 0) || verbose)){
 		write_buffer(a, b, distribution, stencil_size, iterations, times_buffer, r,
