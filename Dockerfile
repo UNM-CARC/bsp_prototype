@@ -9,7 +9,7 @@ ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
 
 # We force our current prototype of the sprng package into the spack
-# repo on this container to try it out for now. ONce it's added to an
+# repo on this container to try it out for now. Once it's added to an
 # actual spack repository (e.g. the CARC one), we'll just pull it from 
 # there instead.
 RUN spack create --skip-editor -n sprng \
