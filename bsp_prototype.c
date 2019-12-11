@@ -456,7 +456,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"barrier_end\": %.3lf, "
 		     	" \"workload_usec\": %.3lf "
 			" \"workload_max_usec\": %.3lf, "
-			" \"interval_max_usec\": %.3lf, "
+			" \"interval_max_usec\": %.3lf "
 		     	" }",
 			i, 
 		     	times_buffer[i].start         ,
@@ -481,7 +481,7 @@ static char distribution[256] = "gaussian";
 static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
-static unsigned int verbose = 1;
+static unsigned int verbose = 0;
 
 
 static struct option longargs[] =
@@ -511,13 +511,14 @@ void usage(char *progname)
 
 void reduce_workload_max(struct coll_time *times_buffer, int iterations) 
 {
+	double *workload = (double *)calloc(iterations, sizeof(double));
 	double *workload_max = (double *)calloc(iterations, sizeof(double));
 	/* First collect local data into the local buffer */
 	for (int i = 0; i < iterations; i++) {
-		workload_max[i] = times_buffer[i].bstart - times_buffer[i].start;
+		workload[i] = times_buffer[i].bstart - times_buffer[i].start;
 	}
 	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
-	MPI_Allreduce(workload_max, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
+	MPI_Allreduce(workload, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	
 	/* And put the actual maxes collected back into the times buffer */
 	for (int i = 0; i < iterations; i++) {
@@ -561,8 +562,8 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
-		case 'r':
-			verbose = 0;
+		case 'v':
+			verbose = 1;
 			break;
         	case 's':
 			sscanf(optarg, "%lu", &initseed);
