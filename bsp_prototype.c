@@ -282,9 +282,20 @@ int tear_down_stencil(double *right, double *left, double *up, double *down, dou
 	return 0;
 }
 
+enum rng_type rng_type = RNG_ERROR;
+
+int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
+{
+  	enum rng_type rng_type = init_rng_type(distribution);
+  	if (rng_type < 0) {
+      		return -1;
+  	}
+	return 0;
+}
+
 
 /* Do one iteration of whatever comoute workload was requested */
-void run_workload(int w, gsl_rng *r, enum rng_type rng_type, double a, double b, double cpn)
+void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
   	double inter_time = 0;
 	switch(w) {
@@ -329,11 +340,10 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 	for (i = 0; i < 8; i++)
 		requests[i] = MPI_REQUEST_NULL;
 
-  	enum rng_type rng_type = init_rng_type(distribution);
-  	if (rng_type < 0) {
-      		return -1;
-  	}
-	
+	if (init_workload(workload, r, distribution, a, b)) {
+		return -1;
+	}
+
 	// If we're going to be doing a stencil, set up the cartesian communivator
 	// we will use.
 	if (stencil_size){
@@ -346,7 +356,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 
 	rank_start_time = MPI_Wtime();
 
-	/* We start at -5 to do 5 warmup iterations that are recorded */
+	/* We start at -5 to do 5 warmup iterations that are not recorded */
   	for( i = -5; i < iterations; i++) {
 		if (stencil_size){
 			//top bottom right left
@@ -355,11 +365,11 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 			MPI_Irecv(right_buf, stencil_size, MPI_DOUBLE, right_rank, 919, my_comm, &requests[2]);
 			MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
 		}
-		//now sleep which counts as our computation
 
 		coll_start = MPI_Wtime();
 
-		run_workload(workload, r, rng_type, a, b, cpn);
+		//now whatever our computational workload is
+		run_workload(workload, r, a, b, cpn);
 
 		waitall_start = MPI_Wtime();
 		//now sends
