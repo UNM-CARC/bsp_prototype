@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <openssl/ssl.h>
+//#include <openssl/ssl.h>
 #include <math.h>
 #include <getopt.h>
 
@@ -52,11 +52,12 @@ MPI_Comm my_comm = 0;
 unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
-  	double expected_sleep;
+  	double start;
 	double wait;
   	double bstart;
   	double bend;
-  	double sleep;
+  	double expected_sleep;
+	double expected_max;
 };
 
 // a methods to exit in case of an error!
@@ -288,8 +289,8 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	double coll_exp_sleep = 0.0;
   	double waitall_start = 0.0;
   	double coll_start = 0.0;
-  	double coll_end = 0.0;
-  	double coll_sleep = 0.0;
+  	double coll_bstart = 0.0;
+  	double coll_bend = 0.0;
   	double rank_start_time = 0.0;
   	int i;
   	double inter_time = 0;
@@ -332,7 +333,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		inter_time = generate_interval_rng(r, rng_type, a, b);
 		assert(inter_time >= 0.0 );
 
-		coll_sleep = MPI_Wtime();
+		coll_start = MPI_Wtime();
 		coll_exp_sleep = inter_time;
 		if (inter_time > 0){
 			sleep_rdtsc(1000  * inter_time, cpn);
@@ -346,23 +347,23 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 			MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
 			MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
 		}
-		coll_start = MPI_Wtime();
+		coll_bstart = MPI_Wtime();
     		MPI_Barrier(MPI_COMM_WORLD);
-    		coll_end = MPI_Wtime();
+    		coll_bend = MPI_Wtime();
 		
     		waitall_start =  ( waitall_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
     		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+    		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
 			times_buffer[ i ].rank = rank;
+			times_buffer[ i ].start = coll_start;
 			times_buffer[ i ].wait = waitall_start;
-			times_buffer[ i ].bstart = coll_start;
-			times_buffer[ i ].bend =  coll_end;
+			times_buffer[ i ].bstart = coll_bstart;
+			times_buffer[ i ].bend =  coll_bend;
 			times_buffer[ i ].expected_sleep = coll_exp_sleep;
-			times_buffer[ i ].sleep = coll_sleep;
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
@@ -427,20 +428,24 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
-		    	" \"sleep_start\": %.3lf, "
+		    	" \"work_start\": %.3lf, "
 		     	" \"wait_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
 		     	" \"expected_sleep_usec\": %.3lf, "
 		     	" \"actual_sleep_usec\": %.3lf "
+			" \"expected_max_usec\": %.3lf, "
+			" \"actual_max_usec\": %.3lf, "
 		     	" }",
 			i, 
-		     	times_buffer[i].sleep         ,
+		     	times_buffer[i].start         ,
 		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,
 		     	times_buffer[i].expected_sleep,
-		     	times_buffer[i].bstart - times_buffer[i].sleep );
+		     	times_buffer[i].bstart - times_buffer[i].start,
+			times_buffer[i].expected_max,
+			times_buffer[i].bend - times_buffer[i].start );
 
 		if (i + 1 < iterations) {
 			fprintf(f_time, ",\n");
@@ -479,6 +484,23 @@ void usage(char *progname)
 	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t stencil_size] [-r] [-g] filename\n", progname);
 
 	return;
+}
+
+
+void reduce_expected_max(struct coll_time *times_buffer, int iterations) 
+{
+	double *expected_max = (double *)calloc(iterations, sizeof(double));
+	/* First collect local data into the local buffer */
+	for (int i = 0; i < iterations; i++) {
+		expected_max[i] = times_buffer[i].bstart - times_buffer[i].start;
+	}
+	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
+	MPI_Allreduce(expected_max, expected_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
+	
+	/* And put the actual maxes collected back into the times buffer */
+	for (int i = 0; i < iterations; i++) {
+		times_buffer[i].expected_max = expected_max[i];
+	}
 }
 
 int main(int argc, char *argv[])
@@ -576,6 +598,9 @@ int main(int argc, char *argv[])
 			   times_buffer, cpn, r);
 
 	set_experiment_id(r);
+
+	reduce_expected_max(times_buffer, iterations);
+
   	if (!ret && ((rank == 0) || verbose)){
 		write_buffer(a, b, distribution, stencil_size, iterations, times_buffer, r,
 			     outfile);
