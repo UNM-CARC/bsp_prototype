@@ -67,6 +67,7 @@ enum bsp_workload {
 	WORKLOAD_IOR
 };
 enum bsp_workload workload = WORKLOAD_SLEEP;
+char *workload_str = "sleep";
 
 // a methods to exit in case of an error!
 void err_out(const char* errMessage){
@@ -450,14 +451,15 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
 		     	" \"rank\": %d, "
+			" \"workload\": \"%s\", "
 		     	" \"distribution\": \"%s\", "
 		     	" \"a\": %f, "
 		     	" \"b\": %f, "
 			" \"stencil_size\": %d, "
 		     	" \"iterations\": %d, ",
 		     	experimentID, (unsigned long)my_comm, nproc, rank,
-		     	distribution, a, b, stencil_size, iterations
-			);
+			workload_str, distribution, a, b, stencil_size,
+			iterations);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "
@@ -589,6 +591,7 @@ int main(int argc, char *argv[])
         		DEBUG = 1;
         		break;
 		case 'w':
+			workload_str = optarg;
 			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
 			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
 //			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
