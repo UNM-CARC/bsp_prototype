@@ -24,6 +24,12 @@
 #include "gsl-sprng.h"
 #include <gsl/gsl_randist.h>
 
+#ifdef __INTEL_COMPILER
+#include <mkl.h>
+#else
+#include <gsl/gsl_cblas.h>
+#endif
+
 //#include "sprng_cpp.h"
 
 #include <assert.h>
@@ -56,6 +62,8 @@ struct coll_time{
 	double wait;
   	double bstart;
   	double bend;
+	double compute_max;
+	double stencil_max;
 	double workload_max;
 };
 
@@ -285,12 +293,39 @@ int tear_down_stencil(double *right, double *left, double *up, double *down, dou
 
 enum rng_type rng_type = RNG_ERROR;
 
+double *DGEMM_A, *DGEMM_B, *DGEMM_C;
+int DGEMM_N, DGEMM_iter;
+
+void fill(double *p, int n)
+{
+        for (int i = 0; i < n; ++i)
+                p[i] = 2 * drand48() - 1;
+}
+
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
+	double *buf;
   	enum rng_type rng_type = init_rng_type(distribution);
-  	if (rng_type < 0) {
-      		return -1;
-  	}
+	switch (w) {
+	case WORKLOAD_SLEEP:
+  		if (rng_type < 0) {
+      			return -1;
+  		}
+		break;
+	case WORKLOAD_DGEMM:
+		DGEMM_N = a;
+		DGEMM_iter = b;
+		buf = (double *)malloc(3 * (int)DGEMM_N * (int)DGEMM_N * sizeof(double));
+                DGEMM_A = buf + 0;
+                DGEMM_B = DGEMM_A + DGEMM_N * DGEMM_N;
+                DGEMM_C = DGEMM_B + DGEMM_N * DGEMM_N;
+                fill(DGEMM_A, DGEMM_N * DGEMM_N);
+                fill(DGEMM_B, DGEMM_N * DGEMM_N);
+                fill(DGEMM_C, DGEMM_N * DGEMM_N);
+		break;
+	default:
+		assert(0 && "Unknown workload!");
+	}
 	return 0;
 }
 
@@ -308,6 +343,12 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 		}
 		break;
 	case WORKLOAD_DGEMM:
+		for (int i = 0; i < DGEMM_iter; i++) {
+	       		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
+				    DGEMM_N, DGEMM_N, DGEMM_N, 1.0,
+                    	   	    (double *)DGEMM_A, DGEMM_N, (double *)DGEMM_B,
+				    DGEMM_N, 1.0, (double *)DGEMM_C, DGEMM_N);
+		}
 		break;
 	default:
 		assert(0 && "Unknown workload!");
@@ -463,10 +504,12 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "
-		     	" \"wait_start\": %.3lf, "
+		     	" \"stencil_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
 		     	" \"workload_usec\": %.3lf "
+			" \"compute_max_usec\": %.3lf, "
+			" \"stencil_max_usec\": %.3lf, "
 			" \"workload_max_usec\": %.3lf, "
 			" \"interval_max_usec\": %.3lf "
 		     	" }",
@@ -476,6 +519,8 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,
 		     	times_buffer[i].bstart - times_buffer[i].start,
+			times_buffer[i].compute_max,
+			times_buffer[i].stencil_max,
 			times_buffer[i].workload_max,
 			times_buffer[i].bend - times_buffer[i].start );
 
@@ -523,19 +568,33 @@ void usage(char *progname)
 
 void reduce_workload_max(struct coll_time *times_buffer, int iterations) 
 {
-	double *workload = (double *)calloc(iterations, sizeof(double));
-	double *workload_max = (double *)calloc(iterations, sizeof(double));
+	double *workload = (double *)calloc(iterations, sizeof(double)),
+	       *compute = (double *)calloc(iterations, sizeof(double)),
+	       *stencil = (double *)calloc(iterations, sizeof(double));
+	double *workload_max = (double *)calloc(iterations, sizeof(double)),
+	       *compute_max = (double *)calloc(iterations, sizeof(double)),
+	       *stencil_max = (double *)calloc(iterations, sizeof(double));
+
 	/* First collect local data into the local buffer */
 	for (int i = 0; i < iterations; i++) {
+		compute[i] = times_buffer[i].wait - times_buffer[i].start;
+		stencil[i] = times_buffer[i].bstart - times_buffer[i].wait;
 		workload[i] = times_buffer[i].bstart - times_buffer[i].start;
 	}
 	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
+	MPI_Allreduce(compute, compute_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
+	MPI_Allreduce(stencil, stencil_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	MPI_Allreduce(workload, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	
 	/* And put the actual maxes collected back into the times buffer */
 	for (int i = 0; i < iterations; i++) {
+		times_buffer[i].compute_max = compute_max[i];
+		times_buffer[i].stencil_max = stencil_max[i];
 		times_buffer[i].workload_max = workload_max[i];
 	}
+	free(workload); free(workload_max);
+	free(compute); free(compute_max);
+	free(stencil); free(stencil_max);
 }
 
 int main(int argc, char *argv[])

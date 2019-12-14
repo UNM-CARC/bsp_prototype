@@ -19,7 +19,7 @@ COPY sprng.py /opt/spack/var/spack/repos/builtin/packages/sprng/package.py
 # Add the new packages we want to the environment and regenerate its
 # view in /usr/local
 WORKDIR /home/docker
-RUN spack add sprng gsl \
+RUN spack add sprng gsl openblas \
     && spack concretize \
     && spack install \
     && spack env view regenerate \
