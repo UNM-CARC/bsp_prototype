@@ -515,7 +515,7 @@ static struct option longargs[] =
 	{"stencil", required_argument, 0, 't'},
 	{"verbose", no_argument, 0, 'v'},
 	{"workload", required_argument, 0, 'w'},
-	{"innerloop", required_argument, 0, 'l'}
+	{"innerloop", required_argument, 0, 'l'},
 	{0, 0, 0, 0}
 };
 
@@ -656,7 +656,7 @@ int main(int argc, char *argv[])
 		stencil_size = 0;
 	}
 
-  	ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, 
+  ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
 			times_buffer, cpn, r);
 
 	set_experiment_id(r);
