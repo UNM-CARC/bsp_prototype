@@ -473,7 +473,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"wait_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
-		     	" \"workload_usec\": %.3lf "
+		     	" \"workload_usec\": %.3lf, "
 			" \"workload_max_usec\": %.3lf, "
 			" \"interval_max_usec\": %.3lf "
 		     	" }",
