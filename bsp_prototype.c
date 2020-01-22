@@ -364,7 +364,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
  * in asnearly a square topology as we can find.
  */
 
-int barrier_loop(double a, double b, char * distribution, int stencil_size, int iterations, 
+int barrier_loop(double a, double b, char * distribution, int stencil_size, int innerloop_itr, int iterations, 
 		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
 {
   	double waitall_start = 0.0;
@@ -372,7 +372,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	double coll_bstart = 0.0;
   	double coll_bend = 0.0;
   	double rank_start_time = 0.0;
-  	int i;
+  	int i,j;
   	int rank = 0;
   	int nprocs = 0;
     	MPI_Request requests[8];
@@ -400,36 +400,42 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 
 	/* We start at -5 to do 5 warmup iterations that are not recorded */
   	for( i = -5; i < iterations; i++) {
-		if (stencil_size){
-			//top bottom right left
-			MPI_Irecv(up_buf, stencil_size, MPI_DOUBLE, up_rank, 811, my_comm, &requests[0]);
-			MPI_Irecv(down_buf, stencil_size, MPI_DOUBLE, down_rank, 823, my_comm, &requests[1]);
-			MPI_Irecv(right_buf, stencil_size, MPI_DOUBLE, right_rank, 919, my_comm, &requests[2]);
-			MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
-		}
+		for(j=0; j<innerloop_itr; j++){
+			if (stencil_size){
+				//top bottom right left
+				MPI_Irecv(up_buf, stencil_size, MPI_DOUBLE, up_rank, 811, my_comm, &requests[0]);
+				MPI_Irecv(down_buf, stencil_size, MPI_DOUBLE, down_rank, 823, my_comm, &requests[1]);
+				MPI_Irecv(right_buf, stencil_size, MPI_DOUBLE, right_rank, 919, my_comm, &requests[2]);
+				MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
+			}
 
-		coll_start = MPI_Wtime();
+			if(j == 0){
+				coll_start = MPI_Wtime();
+			}
+			//now whatever our computational workload is
+			run_workload(workload, r, a, b, cpn);
 
-		//now whatever our computational workload is
-		run_workload(workload, r, a, b, cpn);
+			if(j == 0){
+				waitall_start = MPI_Wtime();
+			}
+			//now sends
+			if(stencil_size){
+				MPI_Isend(values, stencil_size, MPI_DOUBLE, down_rank, 811, my_comm, &requests[4]);
+				MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
+				MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
+				MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
+				MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
+			}
+		}//end of inner loop
 
-		waitall_start = MPI_Wtime();
-		//now sends
-		if(stencil_size){
-			MPI_Isend(values, stencil_size, MPI_DOUBLE, down_rank, 811, my_comm, &requests[4]);
-			MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
-			MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
-			MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
-			MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
-		}
 		coll_bstart = MPI_Wtime();
-    		MPI_Barrier(MPI_COMM_WORLD);
-    		coll_bend = MPI_Wtime();
+		MPI_Barrier(MPI_COMM_WORLD);
+		coll_bend = MPI_Wtime();
 		
-    		waitall_start =  ( waitall_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		waitall_start =  ( waitall_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
@@ -473,7 +479,7 @@ void set_experiment_id(gsl_rng *r)
 }
 
 
-void write_buffer(double a, double b, char * distribution, int stencil_size, int iterations, 
+void write_buffer(double a, double b, char * distribution, int stencil_size, int iterations, int innerloop_itr,
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
 {
   	FILE *f_time;
@@ -497,32 +503,33 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		     	" \"a\": %f, "
 		     	" \"b\": %f, "
 			" \"stencil_size\": %d, "
-		     	" \"iterations\": %d, ",
+		     	" \"iterations\": %d, "
+				 " \"inner_loop_itr\": %d, ",
 		     	experimentID, (unsigned long)my_comm, nproc, rank,
 			workload_str, distribution, a, b, stencil_size,
-			iterations);
+			iterations, innerloop_itr);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "
 		     	" \"stencil_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
-		     	" \"workload_usec\": %.3lf "
-			" \"compute_max_usec\": %.3lf, "
-			" \"stencil_max_usec\": %.3lf, "
-			" \"workload_max_usec\": %.3lf, "
-			" \"interval_max_usec\": %.3lf "
+		     	" \"workload_usec\": %.3lf, "
+				" \"compute_max_usec\": %.3lf, "
+				" \"stencil_max_usec\": %.3lf, "
+				" \"workload_max_usec\": %.3lf, "
+				" \"interval_max_usec\": %.3lf "
 		     	" }",
-			i, 
+				i, 
 		     	times_buffer[i].start         ,
 		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,
 		     	times_buffer[i].bstart - times_buffer[i].start,
-			times_buffer[i].compute_max,
-			times_buffer[i].stencil_max,
-			times_buffer[i].workload_max,
-			times_buffer[i].bend - times_buffer[i].start );
+				times_buffer[i].compute_max,
+				times_buffer[i].stencil_max,
+				times_buffer[i].workload_max,
+				times_buffer[i].bend - times_buffer[i].start );
 
 		if (i + 1 < iterations) {
 			fprintf(f_time, ",\n");
@@ -553,14 +560,16 @@ static struct option longargs[] =
 	{"stencil", required_argument, 0, 't'},
 	{"verbose", no_argument, 0, 'v'},
 	{"workload", required_argument, 0, 'w'},
+	{"innerloop", required_argument, 0, 'l'},
 	{0, 0, 0, 0}
 };
 
-static char *shortargs = (char *)"a:b:d:i:n:s:t:hgvw:";
+static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-w workload-type] [-d distribution] [-a workload-aval] [-b workload-bval] [-i iterations] [-s initial seed] [-t stencil_size] [-v] [-g] filename\n", progname);
+	printf("usage: %s [-w workload-type] [-d distribution] [-a workload-aval] [-b workload-bval] [-i iterations] [-s initial seed]\
+	 [-t stencil_size] [-l inner loop iterations] [-v] [-g] filename\n", progname);
 
 	return;
 }
@@ -606,7 +615,7 @@ int main(int argc, char *argv[])
 	int optindex;
 	char c;
 	int stencil_size=0;
-
+	int innerloop_itr = 1;
 	MPI_Init(&argc,&argv);
 	my_comm = MPI_COMM_WORLD;
   	MPI_Comm_size(my_comm, &nprocs);
@@ -646,9 +655,12 @@ int main(int argc, char *argv[])
 		case 't':
 			sscanf(optarg, "%d", &stencil_size);
 			break;
-      		case 'g':
-        		DEBUG = 1;
-        		break;
+		case 'l':
+			sscanf(optarg, "%d", &innerloop_itr);
+			break;
+      	case 'g':
+			DEBUG = 1;
+			break;
 		case 'w':
 			workload_str = optarg;
 			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
@@ -691,7 +703,7 @@ int main(int argc, char *argv[])
 	 * we can reproduce it.
 	 */
 	snprintf(exp, 256, "%lu%32s%f%f%lu%d", 
-		 initseed, distribution, a, b, iterations, nprocs);
+		initseed, distribution, a, b, iterations, nprocs);
 	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
@@ -699,17 +711,19 @@ int main(int argc, char *argv[])
   	double cpn = get_clocks_per_nanosecond();
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
-	if (stencil_size < 0) stencil_size = 0;
+	if (stencil_size < 0) {
+		stencil_size = 0;
+	}
 
-  	ret = barrier_loop(a, b, distribution, stencil_size, iterations, 
-			   times_buffer, cpn, r);
+  ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
+			times_buffer, cpn, r);
 
 	set_experiment_id(r);
 
 	reduce_workload_max(times_buffer, iterations);
 
   	if (!ret && ((rank == 0) || verbose)){
-		write_buffer(a, b, distribution, stencil_size, iterations, times_buffer, r,
+		write_buffer(a, b, distribution, stencil_size, iterations, innerloop_itr, times_buffer, r,
 			     outfile);
 	}
 	free(times_buffer);
