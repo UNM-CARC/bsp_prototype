@@ -364,7 +364,6 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 int barrier_loop(double a, double b, char * distribution, int stencil_size, int innerloop_itr, int iterations, 
 		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
 {
-  	double waitall_start = 0.0;
   	double coll_start = 0.0;
   	double coll_bstart = 0.0;
   	double coll_bend = 0.0;
@@ -560,8 +559,8 @@ void usage(char *progname)
 }
 
 
-void reduce_workload_max(struct coll_time *times_buffer, int iterations) 
-
+void reduce_workload_max(struct coll_time *times_buffer, int iterations)
+{
 	double *workload = (double *)calloc(iterations, sizeof(double));
 	double *workload_max = (double *)calloc(iterations, sizeof(double));
 
