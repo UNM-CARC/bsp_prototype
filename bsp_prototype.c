@@ -59,11 +59,8 @@ unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
   	double start;
-	double wait;
   	double bstart;
   	double bend;
-	double compute_max;
-	double stencil_max;
 	double workload_max;
 };
 
@@ -298,8 +295,8 @@ int DGEMM_N, DGEMM_iter;
 
 void fill(double *p, int n)
 {
-        for (int i = 0; i < n; ++i)
-                p[i] = 2 * drand48() - 1;
+	for (int i = 0; i < n; ++i)
+		p[i] = 2 * drand48() - 1;
 }
 
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
@@ -367,7 +364,6 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 int barrier_loop(double a, double b, char * distribution, int stencil_size, int innerloop_itr, int iterations, 
 		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
 {
-  	double waitall_start = 0.0;
   	double coll_start = 0.0;
   	double coll_bstart = 0.0;
   	double coll_bend = 0.0;
@@ -375,7 +371,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	int i,j;
   	int rank = 0;
   	int nprocs = 0;
-    	MPI_Request requests[8];
+    MPI_Request requests[8];
 	int left_rank, right_rank, up_rank, down_rank;
 	double *left_buf, *right_buf, *up_buf, *down_buf, *values;
 
@@ -396,10 +392,12 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
  	MPI_Comm_rank(my_comm, &rank);
   	MPI_Comm_size(my_comm, &nprocs);
 
+	//this is not used directly it is just for fining differences
 	rank_start_time = MPI_Wtime();
 
 	/* We start at -5 to do 5 warmup iterations that are not recorded */
   	for( i = -5; i < iterations; i++) {
+		coll_start = MPI_Wtime();
 		for(j=0; j<innerloop_itr; j++){
 			if (stencil_size){
 				//top bottom right left
@@ -409,15 +407,9 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 				MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
 			}
 
-			if(j == 0){
-				coll_start = MPI_Wtime();
-			}
 			//now whatever our computational workload is
 			run_workload(workload, r, a, b, cpn);
-
-			if(j == 0){
-				waitall_start = MPI_Wtime();
-			}
+			//Sahba: It's easy to separate the the timing of workload and stancil is that what we want though?
 			//now sends
 			if(stencil_size){
 				MPI_Isend(values, stencil_size, MPI_DOUBLE, down_rank, 811, my_comm, &requests[4]);
@@ -431,8 +423,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		coll_bstart = MPI_Wtime();
 		MPI_Barrier(MPI_COMM_WORLD);
 		coll_bend = MPI_Wtime();
-		
-		waitall_start =  ( waitall_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+	
 		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
@@ -441,7 +432,6 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		if (i >= 0) {
 			times_buffer[ i ].rank = rank;
 			times_buffer[ i ].start = coll_start;
-			times_buffer[ i ].wait = waitall_start;
 			times_buffer[ i ].bstart = coll_bstart;
 			times_buffer[ i ].bend =  coll_bend;
 		}
@@ -493,41 +483,35 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
   	f_time = fopen(outfile, "w");
 	fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
-	    	fprintf( f_time, "{ " );
+		fprintf( f_time, "{ " );
 		fprintf( f_time, " \"uniq_id\": \"%s\", "
 			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
-		     	" \"rank\": %d, "
+			" \"rank\": %d, "
 			" \"workload\": \"%s\", "
-		     	" \"distribution\": \"%s\", "
-		     	" \"a\": %f, "
-		     	" \"b\": %f, "
+			" \"distribution\": \"%s\", "
+			" \"a\": %f, "
+			" \"b\": %f, "
 			" \"stencil_size\": %d, "
-		     	" \"iterations\": %d, "
-				 " \"inner_loop_itr\": %d, ",
-		     	experimentID, (unsigned long)my_comm, nproc, rank,
+			" \"iterations\": %d, "
+			" \"inner_loop_itr\": %d, ",
+			experimentID, (unsigned long)my_comm, nproc, rank,
 			workload_str, distribution, a, b, stencil_size,
 			iterations, innerloop_itr);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "
-		     	" \"stencil_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
 		     	" \"workload_usec\": %.3lf, "
-				" \"compute_max_usec\": %.3lf, "
-				" \"stencil_max_usec\": %.3lf, "
 				" \"workload_max_usec\": %.3lf, "
 				" \"interval_max_usec\": %.3lf "
 		     	" }",
 				i, 
 		     	times_buffer[i].start         ,
-		     	times_buffer[i].wait          ,
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,
 		     	times_buffer[i].bstart - times_buffer[i].start,
-				times_buffer[i].compute_max,
-				times_buffer[i].stencil_max,
 				times_buffer[i].workload_max,
 				times_buffer[i].bend - times_buffer[i].start );
 
@@ -575,35 +559,25 @@ void usage(char *progname)
 }
 
 
-void reduce_workload_max(struct coll_time *times_buffer, int iterations) 
+void reduce_workload_max(struct coll_time *times_buffer, int iterations)
 {
-	double *workload = (double *)calloc(iterations, sizeof(double)),
-	       *compute = (double *)calloc(iterations, sizeof(double)),
-	       *stencil = (double *)calloc(iterations, sizeof(double));
-	double *workload_max = (double *)calloc(iterations, sizeof(double)),
-	       *compute_max = (double *)calloc(iterations, sizeof(double)),
-	       *stencil_max = (double *)calloc(iterations, sizeof(double));
+	double *workload = (double *)calloc(iterations, sizeof(double));
+	double *workload_max = (double *)calloc(iterations, sizeof(double));
 
 	/* First collect local data into the local buffer */
 	for (int i = 0; i < iterations; i++) {
-		compute[i] = times_buffer[i].wait - times_buffer[i].start;
-		stencil[i] = times_buffer[i].bstart - times_buffer[i].wait;
 		workload[i] = times_buffer[i].bstart - times_buffer[i].start;
 	}
 	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
-	MPI_Allreduce(compute, compute_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
-	MPI_Allreduce(stencil, stencil_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	MPI_Allreduce(workload, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
 	
 	/* And put the actual maxes collected back into the times buffer */
 	for (int i = 0; i < iterations; i++) {
-		times_buffer[i].compute_max = compute_max[i];
-		times_buffer[i].stencil_max = stencil_max[i];
 		times_buffer[i].workload_max = workload_max[i];
 	}
-	free(workload); free(workload_max);
-	free(compute); free(compute_max);
-	free(stencil); free(stencil_max);
+	free(workload);
+	free(workload_max);
+
 }
 
 int main(int argc, char *argv[])
@@ -642,45 +616,45 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
-		case 'v':
-			verbose = 1;
-			break;
-        	case 's':
-			sscanf(optarg, "%lu", &initseed);
-          		break;
-		case 'h':
-			usage(argv[0]);
-			exit(0);
-			break;
-		case 't':
-			sscanf(optarg, "%d", &stencil_size);
-			break;
-		case 'l':
-			sscanf(optarg, "%d", &innerloop_itr);
-			break;
-      	case 'g':
-			DEBUG = 1;
-			break;
-		case 'w':
-			workload_str = optarg;
-			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
-			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
-//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
-//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
-//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
-			else {
-				fprintf(stderr, "Unknown workload type %s.\n", optarg);
+			case 'v':
+				verbose = 1;
+				break;
+				case 's':
+				sscanf(optarg, "%lu", &initseed);
+					break;
+			case 'h':
 				usage(argv[0]);
 				exit(0);
+				break;
+			case 't':
+				sscanf(optarg, "%d", &stencil_size);
+				break;
+			case 'l':
+				sscanf(optarg, "%d", &innerloop_itr);
+				break;
+			case 'g':
+				DEBUG = 1;
+				break;
+			case 'w':
+				workload_str = optarg;
+				if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+				else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
+	//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
+	//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
+	//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
+				else {
+					fprintf(stderr, "Unknown workload type %s.\n", optarg);
+					usage(argv[0]);
+					exit(0);
+				}
+				break;
+				case '?':
+				default:
+					/* getopt_long already printed an error message. */
+				usage(argv[0]);
+				exit(-1);
+					break;
 			}
-			break;
-      		case '?':
-      		default:
-          		/* getopt_long already printed an error message. */
-			usage(argv[0]);
-			exit(-1);
-          		break;
-		}
 	} 
 
 	/* We should have one argument left - the filename. */
