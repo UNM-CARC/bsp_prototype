@@ -37,19 +37,16 @@ class Sprng(AutotoolsPackage):
 
     depends_on('mpi', when='+mpi')
     depends_on('fortran', when='+fortran')
-
+    
     def configure_args(self):
         # FIXME: Add arguments other than --prefix
         # FIXME: If not needed delete this function
         args = []
-	spec = self.spec
-
-	if '+fortran' not in spec:
-	    args.append('--with-fortran=no')
-
-	if '+mpi' in spec:
-	    args.append('--with-mpi')
-	    if spec.satisfies('^openmpi'):
-		args.append('LIBS=-lmpi_cxx')
-
+        spec = self.spec
+        if '+fortran' not in spec:
+            args.append('--with-fortran=no')
+        if '+mpi' in spec:
+            args.append('--with-mpi')
+            if spec.satisfies('^openmpi'):
+                args.append('LIBS=-lmpi_cxx')
         return args
