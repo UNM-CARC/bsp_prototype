@@ -1,29 +1,33 @@
 #!/usr/bin/python3                                                                                                                                                                                        
- 
-import pika
-import sys
-"""                                                                                                                                                                                                       
-Args (The args are passed by the shell script (ex bash runrabit.sh send_simulation localhost 5 4):                                                                                                        
-server_add: The ip address of rabbitmq broker                                                                                                                                                           
-sleep_interval (optional default = 10): how often should the client send the data                                                                                                                       
-duplicate_factor (optional default=3): the initial file is ~14MB large, if we                                                                                                                           
-wanna experiment with a larger message we can use this argument                                                                                                                                       
-A simple script to simulate rabbitmq client that wakes every sleep_interval seconds and sends  a message to the server                                                                                                                                                                                 
 """
+    This modules uses the pika AMQ library to implement
+    rabit clients (send/consume operations)
+"""
+import sys
+import pika
 
-DATA_SIZE=128
+
+DATA_SIZE = 128
 def load_data(duplicate_factor):
+    """
+    Python does data sizes weirdly but this should be very close to 128KiB
+    """
     return 'a' * 1024 * duplicate_factor
 
 def send_simulation(args):
+    """
+    Simulates a rabmq client that periodically sends data to the broker
+    args (all optional) = [broker_ip , sleep_intarval, duplication factor]
+    a duplication factor of 2 will result in ~ 258KB of data
+    """
     import time
 
     broker_ip = "localhost"
     sleep_interval = 10
     duplicate_factor = 3
-    if len(args) > 0:
+    #extracting args
+    if args:
         broker_ip = args[0]
-
     if len(args) > 1:
         sleep_interval = int(args[1])
     if len(args) > 2:
@@ -43,10 +47,12 @@ def send_simulation(args):
         print("\n\nclosing the connection and exiting gracefully!\n")
         connection.close()
 
-def rec(args):
-    broker_ip = "localhost"
-    if len(args) > 0:
-        broker_ip = args[0]
+def rec(broker_ip='localhost'):
+    """
+    subscribes to the brokere on the 'hello' channel and consumes messages
+    used for testing purposes
+    @param broker_ip: the ip address of the broker if not localhost
+    """
 
     print('reciving from broker %s' % broker_ip)
     connection = pika.BlockingConnection(
@@ -76,9 +82,13 @@ if __name__ == '__main__':
     if sys.argv[1] == 'send_simulation':
         print('Running the send_simulation mode')
         send_simulation(sys.argv[2:])
+    
     elif sys.argv[1] == 'rec':
         print('Running the consumption mode')
-        rec(sys.argv[2:])
+        if len(sys.argv) >= 3:
+            rec(sys.argv[2])
+        else:
+            rec()
     else:
-        print('ERROR: usage send_simulation/rec ip port. you specified: ', end='')
+        print('ERROR: usage send_simulation/rec [broker_ip] [sleep_invl] [duplication_factor]. you specified: ', end='')
         print(sys.argv)
