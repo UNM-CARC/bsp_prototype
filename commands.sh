@@ -3,6 +3,7 @@ mkdir -p /tmp/results/
 export PATH=$PATH:/opt/software/linux-centos7-x86_64/gcc-8.3.1/osu-micro-benchmarks-5.6.1-gxlojmj2kwdr366txez2ko6tw75yi4o3/libexec/osu-micro-benchmarks/mpi/pt2pt
 export PYTHONPATH="/root/.local/lib/python3.6/site-packages":$PYTHONPATH
 export HOST=`hostname`
+RABBIT_SCRIPT="/home/docker/rabit_functions.py"
 if [[ $1 == "osu" ]] 
 then
 	#passing all but the first arg to osu_bw
@@ -17,7 +18,7 @@ then
 	then
     	rabbitmq-server
 	else
-		$PYTHON rabit_functions.py "${@:2:$#}"
+		$PYTHON $RABBIT_SCRIPT "${@:2:$#}"
 	fi
 	exit "$?"
 
