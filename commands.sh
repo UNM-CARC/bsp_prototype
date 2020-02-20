@@ -19,6 +19,7 @@ export LDMS_SHM_INDEX="/ldms_shm_mpi_index"
 # Launch workload
 set -x
 mpirun -n $PBS_NP -mca pml ucx --mca btl ^vader,tcp,openib,uct -x UCX_NET_DEVICES=mlx4_0:1 -x PBS_O_HOST -x LDMS_SHM_MPI_FUNC_INCLUDE -x PBS_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD -machinefile $PBS_NODEFILE /home/docker/bsp_prototype "$@" ${OUTFILE}
+
 # Clean up results
 mv ${OUTFILE} /results/
 exit "$?"
