@@ -11,12 +11,12 @@ FROM ${BASE_IMAGE}
 # need to be login shells to get the appropriate spack initialiation.
 SHELL ["/bin/bash", "-l", "-c"]
 RUN spack env activate -d /home/docker
+
 # All commands will run relative to this WORKDIR
 WORKDIR /home/docker
 
-
 # We force our current prototype of the sprng package into the spack
-# repo on this container to try it out for now. ONce it's added to an
+# repo on this container to try it out for now. Once it's added to an
 # actual spack repository (e.g. the CARC one), we'll just pull it from 
 # there instead.
 RUN spack create --skip-editor -n sprng \
@@ -31,10 +31,22 @@ RUN spack add sprng gsl \
     && spack env view regenerate \
     && spack clean -a
 
-# Finally, compile any addtional programs needed locally and set our command
-# that will be run on container start.
+
 COPY Makefile bsp_prototype.c gsl-sprng.h /home/docker/
+RUN spack add sprng gsl openblas osu-micro-benchmarks \
+    && spack concretize \
+    && spack install \
+    && spack env view regenerate \
+    && spack clean -a
+
+# Ask Sahba
+RUN yum install -y rabbitmq-server.noarch python3 \
+    && pip3 install pika --upgrade \ 
+    && echo "[{rabbit, [{loopback_users, []}]}]." \
+      > /etc/rabbitmq/rabbitmq.config
+
 COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype
+COPY rabit_functions.py /home/docker/rabit_functions.py
 RUN ["chmod", "+x", "/home/docker/commands.sh"]
 CMD ["/home/docker/commands.sh"] 

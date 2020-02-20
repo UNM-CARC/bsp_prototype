@@ -16,13 +16,19 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <openssl/ssl.h>
+//#include <openssl/ssl.h>
 #include <math.h>
 #include <getopt.h>
 
 #include <gsl/gsl_rng.h>
 #include "gsl-sprng.h"
 #include <gsl/gsl_randist.h>
+
+#ifdef __INTEL_COMPILER
+#include <mkl.h>
+#else
+#include <gsl/gsl_cblas.h>
+#endif
 
 //#include "sprng_cpp.h"
 
@@ -48,17 +54,25 @@
  * constant    a = interarrival constant duration, b does not have effect
  */
 
+MPI_Comm my_comm = 0;
 unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
-  	double expected_sleep;
   	double start;
-  	double end;
-  	double sleep;
-	//for now we are keeping the time it takes for MPI_Waits to complete
-	//but they are not being written to the CSV
-	double stencilWait;
+  	double bstart;
+  	double bend;
+	double workload_max;
 };
+
+enum bsp_workload {
+	WORKLOAD_SLEEP = 0,
+	WORKLOAD_DGEMM,
+	WORKLOAD_STREAM,
+	WORKLOAD_FBENCH,
+	WORKLOAD_IOR
+};
+enum bsp_workload workload = WORKLOAD_SLEEP;
+char *workload_str = "sleep";
 
 // a methods to exit in case of an error!
 void err_out(const char* errMessage){
@@ -67,18 +81,20 @@ void err_out(const char* errMessage){
 	}
 	MPI_Finalize();
 }
+
 /* 
  * Code to sleep for a pre-determined about of time on an x86_64 system as
  * closely as possible by busy-waitng on the time stamp counter 
  */
 unsigned long long rdtsc(void)
 {
-  unsigned int lo, hi;
-  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+	unsigned int lo, hi;
+	__asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+	return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
-void* myAlloc(size_t size){
+void* myAlloc(size_t size)
+{
 	void* memory = malloc(size);
 	if (memory == NULL){
 		char buffer[50];
@@ -89,45 +105,45 @@ void* myAlloc(size_t size){
 }
 
 //dividing the cores into x and y
-void divide_cores(int ranks, int* coresX, int* coresY){
-for (*coresX=(int) (sqrt(ranks+1.0)); *coresX>0; (*coresX)--) {
-    if ((ranks%(*coresX)) == 0) {
-		 *coresY = ranks/(*coresX);
-		  break;
-	}
-  }
+void divide_cores(int ranks, int* coresX, int* coresY)
+{
+	for (*coresX=(int) (sqrt(ranks+1.0)); *coresX>0; (*coresX)--) {
+    		if ((ranks%(*coresX)) == 0) {
+		 	*coresY = ranks/(*coresX);
+		  	break;
+		}
+  	}
 }
 
 /*
  * get_clocks_per_nanosecond and sleep_rdtsc are based on code in
  * http://sci.tuomastonteri.fi/programming/cplus/x86timer
  */
-double get_clocks_per_nanosecond() {
+double get_clocks_per_nanosecond() 
+{
+  	uint64_t bench1=0;
+	uint64_t bench2=0;
+	double clocks_per_nanosecond=0;
 
-  uint64_t bench1=0;
-  uint64_t bench2=0;
-  double clocks_per_nanosecond=0;
+	bench1=rdtsc();
 
-  bench1=rdtsc();
+	usleep(2500000); // 2.5 second
 
-  usleep(2500000); // 2.5 second
+	bench2=rdtsc();
 
-  bench2=rdtsc();
+	clocks_per_nanosecond = 4.0e-10 * (double)(bench2 - bench1);
 
-  clocks_per_nanosecond = 4.0e-10 * (double)(bench2 - bench1);
-
-  return clocks_per_nanosecond;
+	return clocks_per_nanosecond;
 }
 
 void sleep_rdtsc(uint64_t nanoseconds, double clocks_per_nanosecond)
 {
-  uint64_t begin=rdtsc();
-  uint64_t now;
-  uint64_t dtime = (uint64_t)(((double) nanoseconds)*clocks_per_nanosecond);
-  do
-  {
-    now=rdtsc();
-  }while ( (now-begin) < dtime);
+	uint64_t begin=rdtsc();
+	uint64_t now;
+	uint64_t dtime = (uint64_t)(((double) nanoseconds)*clocks_per_nanosecond);
+	do {
+		now=rdtsc();
+	} while ( (now-begin) < dtime);
 }
 
 
@@ -201,7 +217,8 @@ unsigned long hash_string(char *str)
 
         return hash;
 }
-
+/*
+ *
 void divideLeftOver(const int rank, const int cores, const int gridSize, const int id,  int* start, int* end){
   int width = gridSize / cores;
   int leftOver = gridSize % cores;
@@ -220,190 +237,224 @@ void divideLeftOver(const int rank, const int cores, const int gridSize, const i
   }
 
 }
+*/
+
+
+/*
+ * Set up communicator and directions for stencil communication
+ */
+int setup_stencil(int stencil_size, int *left, int *right, int *up, int *down, 
+		  double **left_buf, double **right_buf, double **up_buf, double **down_buf,
+		  double **values)
+{
+	int grid[2];
+	int period[2] = {1, 1};
+	int rank, nprocs;
+
+	grid[0] = 0; grid[1] = 0;
+  	MPI_Comm_size(my_comm, &nprocs);
+	MPI_Dims_create(nprocs, 2, grid);
+	if (rank == 0 && DEBUG){
+		printf("There are %d cores in x and %d cores in y\n", grid[0], grid[1]);
+	}
+	period[0] = 1; period[1] = 1;
+	MPI_Cart_create(MPI_COMM_WORLD, 2, grid, period, 1, &my_comm);
+
+ 	MPI_Comm_rank(my_comm, &rank);
+  	MPI_Comm_size(my_comm, &nprocs);
+
+	MPI_Cart_shift(my_comm, 0, -1, &rank, left);
+	MPI_Cart_shift(my_comm, 0, 1, &rank, right);
+	MPI_Cart_shift(my_comm, 1, -1, &rank, down);
+	MPI_Cart_shift(my_comm, 1, 1, &rank, up);
+
+	*values = (double*) myAlloc(4 * stencil_size * sizeof(double));
+	for(int i=0; i < 4*stencil_size; i++){
+		(*values)[i] = double(rank);
+	}
+	*up_buf = (double*) myAlloc(stencil_size * 2 * sizeof(double));
+	*down_buf = *up_buf + stencil_size;
+    	*left_buf = (double*) myAlloc(stencil_size * 2 * sizeof(double));
+	*right_buf = *left_buf + stencil_size;
+
+	return 0;
+}
+
+int tear_down_stencil(double *right, double *left, double *up, double *down, double *val)
+{
+	free(up);
+	free(left);
+	free(val);
+	return 0;
+}
+
+enum rng_type rng_type = RNG_ERROR;
+
+double *DGEMM_A, *DGEMM_B, *DGEMM_C;
+int DGEMM_N, DGEMM_iter;
+
+void fill(double *p, int n)
+{
+	for (int i = 0; i < n; ++i)
+		p[i] = 2 * drand48() - 1;
+}
+
+int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
+{
+	double *buf;
+  	enum rng_type rng_type = init_rng_type(distribution);
+	switch (w) {
+	case WORKLOAD_SLEEP:
+  		if (rng_type < 0) {
+      			return -1;
+  		}
+		break;
+	case WORKLOAD_DGEMM:
+		DGEMM_N = a;
+		DGEMM_iter = b;
+		buf = (double *)malloc(3 * (int)DGEMM_N * (int)DGEMM_N * sizeof(double));
+                DGEMM_A = buf + 0;
+                DGEMM_B = DGEMM_A + DGEMM_N * DGEMM_N;
+                DGEMM_C = DGEMM_B + DGEMM_N * DGEMM_N;
+                fill(DGEMM_A, DGEMM_N * DGEMM_N);
+                fill(DGEMM_B, DGEMM_N * DGEMM_N);
+                fill(DGEMM_C, DGEMM_N * DGEMM_N);
+		break;
+	default:
+		assert(0 && "Unknown workload!");
+	}
+	return 0;
+}
+
+
+/* Do one iteration of whatever comoute workload was requested */
+void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
+{
+  	double inter_time = 0;
+	switch(w) {
+	case WORKLOAD_SLEEP:
+		inter_time = generate_interval_rng(r, rng_type, a, b);
+		assert(inter_time >= 0.0 );
+		if (inter_time > 0){
+			sleep_rdtsc(1000  * inter_time, cpn);
+		}
+		break;
+	case WORKLOAD_DGEMM:
+		for (int i = 0; i < DGEMM_iter; i++) {
+	       		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
+				    DGEMM_N, DGEMM_N, DGEMM_N, 1.0,
+                    	   	    (double *)DGEMM_A, DGEMM_N, (double *)DGEMM_B,
+				    DGEMM_N, 1.0, (double *)DGEMM_C, DGEMM_N);
+		}
+		break;
+	default:
+		assert(0 && "Unknown workload!");
+	}
+}
 
 /* 
  * Main loop for the program - sleep in a barrier some number of iterations
  * with the length of each iteration drawn from a random distribution. 
  * Log the desired local, actual local, and actual global sleep times
  * as we run for later output.
- * Also if gridSize > 0, a gridsize * gridsize lattice is divided among the cores
- * and the corse communicate "ghost cells" to their left, right, top, and bottom neighbors
- * The purpose is to mimick a 2D stencil operation
+ * Also if stencil_size > 0, each node halos stencil_size doubles with its neighbors
+ * in asnearly a square topology as we can find.
  */
 
-int barrier_loop_stencil(double a, double b, char * distribution, int iterations, 
-		 struct coll_time * times_buffer, double cpn, gsl_rng *r, int gridSize)
+int barrier_loop(double a, double b, char * distribution, int stencil_size, int innerloop_itr, int iterations, 
+		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
 {
-  	double coll_exp_sleep = 0.0;
   	double coll_start = 0.0;
-  	double coll_end = 0.0;
-  	double coll_sleep = 0.0;
-    double mpi_waitTime = 0.0;
+  	double coll_bstart = 0.0;
+  	double coll_bend = 0.0;
   	double rank_start_time = 0.0;
-  	int i;
-  	double inter_time = 0;
+  	int i,j;
   	int rank = 0;
   	int nprocs = 0;
     MPI_Request requests[8];
+	int left_rank, right_rank, up_rank, down_rank;
+	double *left_buf, *right_buf, *up_buf, *down_buf, *values;
 
- 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+	for (i = 0; i < 8; i++)
+		requests[i] = MPI_REQUEST_NULL;
 
-  	enum rng_type rng_type = init_rng_type(distribution);
-  	if (rng_type < 0) {
-      	return -1;
-  	}
-	//variables for decomposing the grid!
-	int myIDX, myIDY, coresX, coresY;
-	int myLeftNbr, myRightNbr, myTopNbr, myBottomNbr;
-	int width, height, xstart, xend, ystart, yend;
-	//buffers for doing p2p ops
-	double* topBuffer, *downBuffer, *rightBuffer, *leftBuffer, *myValues;
-	if (gridSize){
-		divide_cores(nprocs, &coresX, &coresY);
-		myIDX = rank % coresX;
-		myIDY = rank / coresX;
-		myLeftNbr = rank - 1;
-		myRightNbr = rank + 1;
-		myTopNbr = rank + coresX;
-		myBottomNbr = rank - coresX;
-		if (rank == 0 && DEBUG){
-			printf("There are %d cores in x and %d cores in y\n", coresX, coresY);
-		}
-		if (DEBUG){
-			printf("I am rank %d, my IDX is %d my IDY is %d my left and right neighbors are %d %d and my top and bottom are %d %d\n",
-			 rank, myIDX, myIDY, myLeftNbr, myRightNbr, myTopNbr, myBottomNbr);
-		}
-		// We need to take care of left-overs. the end and start are both inclusive
-		divideLeftOver(rank, coresX, gridSize, myIDX, &xstart, &xend);
-		width = xend - xstart + 1;
-		divideLeftOver(rank, coresY, gridSize, myIDY, &ystart, &yend);
-		height = yend - ystart + 1;
-		int valueBufferSize = MAX(width, height) * RADIUS;
-		//initialize an array with the values to be sent to other nodes
-		//the values we send and recieve are the rank numbers
-		myValues = (double*) myAlloc(valueBufferSize * sizeof(double));
-		for(int i=0; i < valueBufferSize; i++){
-			myValues[i] = double(rank);
-		}
-		
-		topBuffer = (double*) myAlloc(2 * width * RADIUS * sizeof(double));
-		downBuffer = topBuffer + width * RADIUS;
-    	leftBuffer = (double*) myAlloc(2 * height * RADIUS * sizeof(double));
-		rightBuffer = leftBuffer + height * RADIUS;
+	if (init_workload(workload, r, distribution, a, b)) {
+		return -1;
 	}
+
+	// If we're going to be doing a stencil, set up the cartesian communivator
+	// we will use.
+	if (stencil_size){
+		setup_stencil(stencil_size, &left_rank, &right_rank, &up_rank, &down_rank,
+			      &left_buf, &right_buf, &up_buf, &down_buf, &values);
+	} 
+
+ 	MPI_Comm_rank(my_comm, &rank);
+  	MPI_Comm_size(my_comm, &nprocs);
+
+	//this is not used directly it is just for fining differences
 	rank_start_time = MPI_Wtime();
 
-	/* We start at -5 to do 5 warmup iterations that are recorded */
+	/* We start at -5 to do 5 warmup iterations that are not recorded */
   	for( i = -5; i < iterations; i++) {
-		if (gridSize){
-			//top bottom right left
-			if (myIDY < coresY - 1){
-				MPI_Irecv(topBuffer, width * RADIUS, MPI_DOUBLE, myTopNbr, 811, MPI_COMM_WORLD, &requests[0]);
+		coll_start = MPI_Wtime();
+		for(j=0; j<innerloop_itr; j++){
+			if (stencil_size){
+				//top bottom right left
+				MPI_Irecv(up_buf, stencil_size, MPI_DOUBLE, up_rank, 811, my_comm, &requests[0]);
+				MPI_Irecv(down_buf, stencil_size, MPI_DOUBLE, down_rank, 823, my_comm, &requests[1]);
+				MPI_Irecv(right_buf, stencil_size, MPI_DOUBLE, right_rank, 919, my_comm, &requests[2]);
+				MPI_Irecv(left_buf, stencil_size, MPI_DOUBLE, left_rank, 977, my_comm, &requests[3]);
 			}
-			if (myIDY > 0){
-				MPI_Irecv(downBuffer, width * RADIUS, MPI_DOUBLE, myBottomNbr, 823, MPI_COMM_WORLD, &requests[1]);
-			}
-			if (myIDX < coresX - 1){
-				MPI_Irecv(rightBuffer, height * RADIUS, MPI_DOUBLE, myRightNbr, 919, MPI_COMM_WORLD, &requests[2]);
-			}
-			if (myIDX > 0){
-				MPI_Irecv(leftBuffer, height * RADIUS, MPI_DOUBLE, myLeftNbr, 977, MPI_COMM_WORLD, &requests[3]);
-			}
-		}
-		//now sleep which counts as our computation
-		inter_time = generate_interval_rng(r, rng_type, a, b);
-    
-		assert(inter_time >= 0.0 );
 
-		coll_sleep = MPI_Wtime();
-		coll_exp_sleep = inter_time;
-		if (inter_time > 0){
-			sleep_rdtsc(1000  * inter_time, cpn);
-		}
+			//now whatever our computational workload is
+			run_workload(workload, r, a, b, cpn);
+			//Sahba: It's easy to separate the the timing of workload and stancil is that what we want though?
+			//now sends
+			if(stencil_size){
+				MPI_Isend(values, stencil_size, MPI_DOUBLE, down_rank, 811, my_comm, &requests[4]);
+				MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
+				MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
+				MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
+				MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
+			}
+		}//end of inner loop
 
-		//now sends
-		if(gridSize){
-			if(myIDY > 0){
-				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myBottomNbr, 811, MPI_COMM_WORLD, &requests[5]);
-			}
-			if(myIDY < coresY - 1){		
-				MPI_Isend(myValues, width * RADIUS, MPI_DOUBLE, myTopNbr, 823, MPI_COMM_WORLD, &requests[4]);
-			}
-			if(myIDX > 0){
-				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myLeftNbr, 919, MPI_COMM_WORLD, &requests[7]);
-			}
-			if(myIDX < coresX - 1){
-				MPI_Isend(myValues, height * RADIUS, MPI_DOUBLE, myRightNbr, 977, MPI_COMM_WORLD, &requests[6]);
-			}
-			mpi_waitTime = MPI_Wtime();
-			//let the waiting begin!
-			if(myIDX > 0){
-				MPI_Wait(&requests[3], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[7] , MPI_STATUS_IGNORE);
-			}
-			if(myIDX < coresX -1){
-				MPI_Wait(&requests[2], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[6] , MPI_STATUS_IGNORE);
-			}
-			if(myIDY > 0){
-				MPI_Wait(&requests[1], MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[5] , MPI_STATUS_IGNORE);
-			}
-			if(myIDY < coresY -1){
-				MPI_Wait(&requests[0] , MPI_STATUS_IGNORE);
-				MPI_Wait(&requests[4], MPI_STATUS_IGNORE);
-			}
-			mpi_waitTime = MPI_Wtime() - mpi_waitTime;
-			mpi_waitTime *= SECOND_TO_MICRO_FACTOR;
-		}
-			coll_start = MPI_Wtime();
-    		MPI_Barrier(MPI_COMM_WORLD);
-    		coll_end = MPI_Wtime();
-
-    		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_end   =     ( coll_end   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_sleep =     ( coll_sleep - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
-    		coll_exp_sleep = ( coll_exp_sleep ) * 1000;
+		coll_bstart = MPI_Wtime();
+		MPI_Barrier(MPI_COMM_WORLD);
+		coll_bend = MPI_Wtime();
+	
+		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
+		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
 			times_buffer[ i ].rank = rank;
-			times_buffer[ i ].start = (unsigned long) coll_start;
-			times_buffer[ i ].end =  (unsigned long) coll_end;
-			times_buffer[ i ].expected_sleep = (unsigned long)coll_exp_sleep;
-			times_buffer[ i ].sleep = (unsigned long) coll_sleep;
-			if (gridSize){
-				times_buffer[i].stencilWait = (unsigned long) mpi_waitTime;
-			}
+			times_buffer[ i ].start = coll_start;
+			times_buffer[ i ].bstart = coll_bstart;
+			times_buffer[ i ].bend =  coll_bend;
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
-	if(gridSize){
-		free(topBuffer);
-		free(leftBuffer);
-		free(myValues);
+	if(stencil_size){
+		tear_down_stencil(right_buf, left_buf, up_buf, down_buf, values);
 	}
 	return 0;
 }
 
-
-void write_buffer(double a, double b, char * distribution, int iterations, 
-		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
+char experimentID[20];
+void set_experiment_id(gsl_rng *r)
 {
 	const char *str = "0123456789abcdef";
-	char experimentID[20];
-  	FILE *f_time;
-	int rank;
   	int root = 0;
-  	int i;
 	int length = 13;
-
-  	f_time = fopen(outfile, "a");
+	int rank;
 
 	/* Share the experiment ID across ranks */
-  	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  	MPI_Comm_rank(my_comm,&rank);
   	if (rank == 0) {
+		int i;
 		// We use GSL here, so we'll get a fixed experiment ID for a 
 		// fixed set of parameters, which is a good thing because it
 		// lets us consistently regenerate experiments.
@@ -413,25 +464,64 @@ void write_buffer(double a, double b, char * distribution, int iterations,
     		experimentID[i] = 0;
   	}
   	MPI_Bcast(&experimentID, sizeof(experimentID),
-                  MPI_CHAR, root, MPI_COMM_WORLD);
+                  MPI_CHAR, root, my_comm);
+	return;
+}
+
+
+void write_buffer(double a, double b, char * distribution, int stencil_size, int iterations, int innerloop_itr,
+		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
+{
+  	FILE *f_time;
+	int rank, nproc;
+  	int i;
+
+  	MPI_Comm_rank(my_comm,&rank);
+  	MPI_Comm_size(my_comm,&nproc);
 
 	/* Print the logged data to the local data file */
+  	f_time = fopen(outfile, "w");
+	fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
-		fprintf(f_time, "%s,", experimentID);
-    		fprintf(f_time, "%d,", rank);
-   		fprintf(f_time, "%d,", i);
-    		fprintf(f_time, "%s,", distribution);
-    		fprintf(f_time, "%f,", a);
-    		fprintf(f_time, "%f,", b);
-    		fprintf(f_time, "%d,", iterations);
-    		fprintf(f_time, "%.3lf,%.3lf,%.3lf,%.3lf,%.3lf",
-        			times_buffer[i].sleep         ,
-        			times_buffer[i].start         ,
-        			times_buffer[i].end           ,
-        			times_buffer[i].expected_sleep,
-        			times_buffer[i].start - times_buffer[i].sleep);
-    		fprintf(f_time, "\n");
+		fprintf( f_time, "{ " );
+		fprintf( f_time, " \"uniq_id\": \"%s\", "
+			" \"communicator\": %lu, "
+			" \"comm_size\": %d, "
+			" \"rank\": %d, "
+			" \"workload\": \"%s\", "
+			" \"distribution\": \"%s\", "
+			" \"a\": %f, "
+			" \"b\": %f, "
+			" \"stencil_size\": %d, "
+			" \"iterations\": %d, "
+			" \"inner_loop_itr\": %d, ",
+			experimentID, (unsigned long)my_comm, nproc, rank,
+			workload_str, distribution, a, b, stencil_size,
+			iterations, innerloop_itr);
+		fprintf( f_time, 
+		     	" \"iteration\": %d, "
+		    	" \"work_start\": %.3lf, "
+		     	" \"barrier_start\": %.3lf, "
+		     	" \"barrier_end\": %.3lf, "
+		     	" \"workload_usec\": %.3lf, "
+				" \"workload_max_usec\": %.3lf, "
+				" \"interval_max_usec\": %.3lf "
+		     	" }",
+				i, 
+		     	times_buffer[i].start         ,
+		     	times_buffer[i].bstart         ,
+		     	times_buffer[i].bend           ,
+		     	times_buffer[i].bstart - times_buffer[i].start,
+				times_buffer[i].workload_max,
+				times_buffer[i].bend - times_buffer[i].start );
+
+		if (i + 1 < iterations) {
+			fprintf(f_time, ",\n");
+		} else {
+			fprintf(f_time, "\n");
+		}
   	}
+	fprintf(f_time, "]\n");
   	fclose(f_time);
 }
 
@@ -439,27 +529,55 @@ static char distribution[256] = "gaussian";
 static double a = 100000, b = 10000;
 static unsigned long iterations = 1000;
 static unsigned long initseed = 0;
-static unsigned int reducedout = 0;
+static unsigned int verbose = 0;
+
 
 static struct option longargs[] =
 {
 	{"a", required_argument, 0, 'a'},
 	{"b", required_argument, 0, 'b'},
 	{"distribution", required_argument, 0, 'd'},
+	{"debug", no_argument, 0, 'g'},
 	{"iterations", required_argument, 0, 'i'},
-	{"reduced-output", no_argument, 0, 'r'},
 	{"seed", required_argument, 0, 's'},
 	{"help", no_argument, 0, 'h'},
 	{"stencil", required_argument, 0, 't'},
-	{"debug", no_argument, 0, 'g'},
+	{"verbose", no_argument, 0, 'v'},
+	{"workload", required_argument, 0, 'w'},
+	{"innerloop", required_argument, 0, 'l'},
 	{0, 0, 0, 0}
 };
-static char *shortargs = (char *)"a:b:d:i:s:n:t:hgr";
+
+static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:";
 
 void usage(char *progname)
 {
-	printf("usage: %s [-d dist] [-a aval] [-b bval] [-i iterations] [-s initial seed] [-t gridsize] [-r] [-g] filename\n", progname);
+	printf("usage: %s [-w workload-type] [-d distribution] [-a workload-aval] [-b workload-bval] [-i iterations] [-s initial seed]\
+	 [-t stencil_size] [-l inner loop iterations] [-v] [-g] filename\n", progname);
+
 	return;
+}
+
+
+void reduce_workload_max(struct coll_time *times_buffer, int iterations)
+{
+	double *workload = (double *)calloc(iterations, sizeof(double));
+	double *workload_max = (double *)calloc(iterations, sizeof(double));
+
+	/* First collect local data into the local buffer */
+	for (int i = 0; i < iterations; i++) {
+		workload[i] = times_buffer[i].bstart - times_buffer[i].start;
+	}
+	/* Now use an MPI Reduce to take the maximum of these expected times across all ranks */
+	MPI_Allreduce(workload, workload_max, iterations, MPI_DOUBLE, MPI_MAX, my_comm);
+	
+	/* And put the actual maxes collected back into the times buffer */
+	for (int i = 0; i < iterations; i++) {
+		times_buffer[i].workload_max = workload_max[i];
+	}
+	free(workload);
+	free(workload_max);
+
 }
 
 int main(int argc, char *argv[])
@@ -470,11 +588,12 @@ int main(int argc, char *argv[])
 	char *outfile = NULL;
 	int optindex;
 	char c;
-	int grid_Size=0;
-
+	int stencil_size=0;
+	int innerloop_itr = 1;
 	MPI_Init(&argc,&argv);
-  	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-  	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	my_comm = MPI_COMM_WORLD;
+  	MPI_Comm_size(my_comm, &nprocs);
+  	MPI_Comm_rank(my_comm, &rank);
 
 	for (int i = 0; i < argc; i++)
 		printf("%s ", argv[i]);
@@ -497,29 +616,45 @@ int main(int argc, char *argv[])
         	case 'i':
 			sscanf(optarg, "%lu", &iterations);
           		break;
-			case 'r':
-				reducedout = 1;
+			case 'v':
+				verbose = 1;
 				break;
-        	case 's':
-			sscanf(optarg, "%lu", &initseed);
-          		break;
+				case 's':
+				sscanf(optarg, "%lu", &initseed);
+					break;
 			case 'h':
 				usage(argv[0]);
 				exit(0);
 				break;
 			case 't':
-				sscanf(optarg, "%d", &grid_Size);
+				sscanf(optarg, "%d", &stencil_size);
 				break;
-      		case 'g':
-        		DEBUG = 1;
-        		break;
-      		case '?':
-      		default:
-          		/* getopt_long already printed an error message. */
+			case 'l':
+				sscanf(optarg, "%d", &innerloop_itr);
+				break;
+			case 'g':
+				DEBUG = 1;
+				break;
+			case 'w':
+				workload_str = optarg;
+				if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+				else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
+	//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
+	//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
+	//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
+				else {
+					fprintf(stderr, "Unknown workload type %s.\n", optarg);
+					usage(argv[0]);
+					exit(0);
+				}
+				break;
+				case '?':
+				default:
+					/* getopt_long already printed an error message. */
 				usage(argv[0]);
 				exit(-1);
-          		break;
-		}
+					break;
+			}
 	} 
 
 	/* We should have one argument left - the filename. */
@@ -542,7 +677,7 @@ int main(int argc, char *argv[])
 	 * we can reproduce it.
 	 */
 	snprintf(exp, 256, "%lu%32s%f%f%lu%d", 
-		 initseed, distribution, a, b, iterations, nprocs);
+		initseed, distribution, a, b, iterations, nprocs);
 	unsigned long seed = hash_string(exp);
 	gsl_rng_default_seed = seed;
   	r = gsl_rng_alloc (gsl_rng_sprng50);
@@ -550,16 +685,21 @@ int main(int argc, char *argv[])
   	double cpn = get_clocks_per_nanosecond();
   	struct coll_time *times_buffer = (struct coll_time *)calloc(iterations, sizeof(struct coll_time));
 
-	if (grid_Size <= 0){
-  		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, 0);
-	}else{
-		ret = barrier_loop_stencil(a, b, distribution, iterations, times_buffer, cpn, r, grid_Size);
+	if (stencil_size < 0) {
+		stencil_size = 0;
 	}
 
-  	if (!ret && ((rank == 0) || !reducedout)){
-		write_buffer(a, b, distribution, iterations, times_buffer, r,
+  ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
+			times_buffer, cpn, r);
+
+	set_experiment_id(r);
+
+	reduce_workload_max(times_buffer, iterations);
+
+  	if (!ret && ((rank == 0) || verbose)){
+		write_buffer(a, b, distribution, stencil_size, iterations, innerloop_itr, times_buffer, r,
 			     outfile);
-	  }
+	}
 	free(times_buffer);
   	free(r);
 
