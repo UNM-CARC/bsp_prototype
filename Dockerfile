@@ -31,7 +31,7 @@ RUN spack add sprng gsl \
     && spack env view regenerate \
     && spack clean -a
 
-
+# Copy bsp prototype files
 COPY Makefile bsp_prototype.c gsl-sprng.h /home/docker/
 RUN spack add sprng gsl openblas osu-micro-benchmarks \
     && spack concretize \
@@ -45,8 +45,19 @@ RUN yum install -y rabbitmq-server.noarch python3 \
     && echo "[{rabbit, [{loopback_users, []}]}]." \
       > /etc/rabbitmq/rabbitmq.config
 
+# Copy workload execution script
 COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype
+
+# Copy rabbit scripts
 COPY rabit_functions.py /home/docker/rabit_functions.py
+
+# Copy environment scripts
+COPY entrypoint.sh /home/docker
+
+# Copy ompi launch script
+COPY ompi_launch.sh /home/docker
+
+
 RUN ["chmod", "+x", "/home/docker/commands.sh"]
 CMD ["/home/docker/commands.sh"] 
