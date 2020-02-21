@@ -30,8 +30,6 @@
 #include <gsl/gsl_cblas.h>
 #endif
 
-//#include "sprng_cpp.h"
-
 #include <assert.h>
 
 #include "mpi.h"
@@ -473,21 +471,97 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
 {
   	FILE *f_time;
-	int rank, nproc;
+    int rank, nproc;
   	int i;
 
   	MPI_Comm_rank(my_comm,&rank);
   	MPI_Comm_size(my_comm,&nproc);
 
-	/* Print the logged data to the local data file */
-  	f_time = fopen(outfile, "w");
-	fprintf(f_time, "[\n");
+    char hostbuffer[256];
+    int hostname_ret;
+
+    // To retrieve hostname 
+    hostname_ret = gethostname(hostbuffer, sizeof(hostbuffer));
+    if (hostname_ret) {
+      fprintf(stderr,"Error: Hostname not found.\n");
+      exit(-1);
+    }
+
+    // Add hostname to beginning of outfile
+    int hostname_idx = -1;
+
+    /* Share the experiment ID across ranks */
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+    // 256+256+"_"+"_"+"rankX" = 519
+    char hostname_outfile[519];
+
+    // Get the last dir '/'
+    int last_dir_idx = 0;
+    for (int i=0; i<256; i++) {
+      if (!outfile[i]) {
+        break;
+      }
+      if (outfile[i] == '/') {
+        last_dir_idx=i;
+      }
+    }
+
+    // Write the path up to last '/'
+    for (int i=0; i<256; i++) {
+      if (i <= last_dir_idx) {
+        hostname_outfile[i] = outfile[i];
+      }
+    }
+    // Write the hostname then write the rank.
+    for (int i=last_dir_idx+1; i<256; i++) {
+      if (hostbuffer[i-last_dir_idx-1]) {
+        hostname_outfile[i] = hostbuffer[i-last_dir_idx-1];
+      }
+      else {
+        hostname_outfile[i]='_';
+        hostname_outfile[i+1]='r';
+        hostname_outfile[i+2]='a';
+        hostname_outfile[i+3]='n';
+        hostname_outfile[i+4]='k';
+        // Move the int to the appropriate ascii table entry
+        hostname_outfile[i+5]=(char)((rank/10000)%10+48);
+        hostname_outfile[i+6]=(char)((rank/1000)%10+48);
+        hostname_outfile[i+7]=(char)((rank/100)%10+48);
+        hostname_outfile[i+8]=(char)((rank/10)%10+48);
+        hostname_outfile[i+9]=(char)(rank%10+48);
+        hostname_outfile[i+10]='_';
+        hostname_idx=i+11;
+        break;
+      }
+    }
+
+    // Write the rest of the filename after hostname+rank
+    for (int i = 0; i<256; i++) {
+      if (outfile[i+last_dir_idx+1]) {
+        hostname_outfile[i+hostname_idx] = outfile[i+last_dir_idx+1];
+      } else { hostname_outfile[i+hostname_idx]='\0'; break; }
+    }
+
+    f_time = fopen(hostname_outfile, "w");
+    if (!f_time) {
+      fprintf(stderr, 
+              "%s: Unable to write file: %s\n", 
+              hostbuffer,hostname_outfile);
+      exit(-1);
+    }
+
+
+	  /* Print the logged data to the local data file */
+  	f_time = fopen(hostname_outfile, "w");
+	  fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
 		fprintf( f_time, "{ " );
 		fprintf( f_time, " \"uniq_id\": \"%s\", "
 			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
 			" \"rank\": %d, "
+			" \"hostname\": %s, "
 			" \"workload\": \"%s\", "
 			" \"distribution\": \"%s\", "
 			" \"a\": %f, "
@@ -496,8 +570,8 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			" \"iterations\": %d, "
 			" \"inner_loop_itr\": %d, ",
 			experimentID, (unsigned long)my_comm, nproc, rank,
-			workload_str, distribution, a, b, stencil_size,
-			iterations, innerloop_itr);
+      hostbuffer, workload_str, distribution, a, b, 
+      stencil_size,	iterations, innerloop_itr);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "

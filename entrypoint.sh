@@ -51,23 +51,21 @@ if [ "$1" '=' 'shell' ] ; then
 
         exit 1
     fi
-elif [[ $1 == "osu" ]] 
-then
-	#passing all but the first arg to osu_bw
-	osu_bw "${@:2:$#}"
-	exit "$?"
+elif [[ $1 == "osu" ]]; then
+    #passing all but the first arg to osu_bw
+    osu_bw "${@:2:$#}"
+    exit "$?"
 
-elif [[ $1 == 'rabbit-server' ]]
-then
+elif [[ $1 == 'rabbit-server' ]]; then
   rabbitmq-server
   exit "$?"
-elif [[ $1 == 'rabbit-client' ]]
-		python /home/docker/rabit_functions.py "${@:1:$#}"
-	exit "$?"
-elif [ "$1" '=' 'orted' ] ; then
-    "$@"; 
+elif [[ $1 == 'rabbit-client' ]]; then
+  python /home/docker/rabit_functions.py "${@:1:$#}"
+  exit "$?"
+elif [ "$1" '=' 'orted' ]; then
+  "$@"; 
 else
-    /home/docker/commands.sh "$@" 
-    exit $?
+  /home/docker/commands.sh "$@" 
+  exit $?
 fi
 
