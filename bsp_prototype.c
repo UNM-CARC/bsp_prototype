@@ -201,6 +201,7 @@ double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, doubl
 		case RNG_CONSTANT:
 			return a;
 		default:
+			puts("No distribution specified - Using Gaussian as default");
 			return 0.0;
 		}
 	} while (inter_time < 0.0);
