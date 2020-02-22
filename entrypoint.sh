@@ -63,9 +63,17 @@ elif [[ $1 == 'rabbit-client' ]]; then
   python /home/docker/rabit_functions.py "${@:1:$#}"
   exit "$?"
 elif [ "$1" '=' 'orted' ]; then
-  "$@"; 
+  echo checking orted
+  echo $(which orted)
+  ls -altr $(which orted)
+  echo inside entrypoint
+  #echo "${@:1:31} ${@:33:$#}";
+  #"${@:1:31} ${@:33:$#}";
+  #echo "${@:1:31} -mca pm_base_verbose 100";
+  #"${@:1:31} -mca pm_base_verbose 100";
+  echo $@;
+  "$@";
 else
   /home/docker/commands.sh "$@" 
   exit $?
 fi
-
