@@ -48,7 +48,7 @@ export OMPI_MCA_orte_launch_agent="${CONTAINER_IMAGE_DIR}/bsp_prototype/home/doc
 #
 ########################################
 TIMER=$((-1*$(date +%s)))
-mpirun -mca pml ucx -mca btl ^vader,tcp,openib,uct -x UCX_NET_DEVICES=mlx4_0:1 -n $PBS_NP -x CONTAINER_IMAGE_DIR -x PBS_O_HOST -x LDMS_SHM_MPI_FUNC_INCLUDE -x PBS_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD -machinefile $PBS_NODEFILE /home/docker/bsp_prototype "$@" ${OUTFILE}
+mpirun --map-by ppr:1:node -mca pml ucx -mca btl ^vader,tcp,openib,uct -x UCX_NET_DEVICES=mlx4_0:1 -n $(( $PBS_NP/8 )) -x CONTAINER_IMAGE_DIR -x PBS_O_HOST -x LDMS_SHM_MPI_FUNC_INCLUDE -x PBS_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD -machinefile $PBS_NODEFILE /home/docker/bsp_prototype "$@" ${OUTFILE}
 echo Time taken to do workload is $(( $(date +%s) + ${TIMER} ))
 
 # Kill LDMS sampler on all nodes
