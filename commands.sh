@@ -2,7 +2,7 @@
 source /home/docker/env.sh
 
 # Establish filename suffix
-export OUTFILE="${APPLICATION_OUTPUT_DIR}/$RANDOM.csv"
+export OUTFILE="${APPLICATION_OUTPUT_DIR}/bsp_simulator_output_$(date +%m-%d-%y_%H:%M:%S).json"
 
 #########################################
 #
