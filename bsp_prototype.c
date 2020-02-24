@@ -514,7 +514,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
         hostname_outfile[i] = hostbuffer[i-last_dir_idx-1];
       }
       else {
-        hostbuffer[i]='_';
+        hostname_outfile[i]='_';
         hostname_idx=i+1;
         break;
       }
