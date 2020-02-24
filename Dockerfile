@@ -39,18 +39,9 @@ RUN spack add sprng gsl openblas osu-micro-benchmarks \
     && spack env view regenerate \
     && spack clean -a
 
-# Ask Sahba
-RUN yum install -y rabbitmq-server.noarch python3 \
-    && pip3 install pika --upgrade \ 
-    && echo "[{rabbit, [{loopback_users, []}]}]." \
-      > /etc/rabbitmq/rabbitmq.config
-
 # Copy workload execution script
 COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype
-
-# Copy rabbit scripts
-COPY rabit_functions.py /home/docker/rabit_functions.py
 
 # Copy environment scripts
 COPY entrypoint.sh /home/docker

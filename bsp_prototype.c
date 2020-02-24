@@ -474,15 +474,66 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
 {
   	FILE *f_time;
-	int rank, nproc;
+	  int rank, nproc;
   	int i;
+    char hostbuffer[256];
+    int hostname_ret;
+
+    // To retrieve hostname 
+    hostname_ret = gethostname(hostbuffer, sizeof(hostbuffer));
+    if (hostname_ret) {
+      fprintf(stderr,"Error: Hostname not found.\n");
+      exit(-1);
+    }
+
+    // 256+256+"_"+"_" = 514
+    char hostname_outfile[514];
+    int hostname_idx = -1;
+
+    // Get the last dir '/'
+    int last_dir_idx = 0;
+    for (int i=0; i<256; i++) {
+      if (!outfile[i]) {
+        break;
+      }
+      if (outfile[i] == '/') {
+        last_dir_idx=i;
+      }
+    }
+
+    // Write the path up to last '/'
+    for (int i=0; i<256; i++) {
+      if (i <= last_dir_idx) {
+        hostname_outfile[i] = outfile[i];
+      }
+    }
+
+    // Write the hostname
+    for (int i=last_dir_idx+1; i<256; i++) {
+      if (hostbuffer[i-last_dir_idx-1]) {
+        hostname_outfile[i] = hostbuffer[i-last_dir_idx-1];
+      }
+      else {
+        hostbuffer[i]='_';
+        hostname_idx=i+1;
+        break;
+      }
+    } 
+
+    // Write the rest of the filename after hostname
+    for (int i = 0; i<256; i++) {
+      if (outfile[i+last_dir_idx+1]) {
+        hostname_outfile[i+hostname_idx] = outfile[i+last_dir_idx+1];
+      } else { hostname_outfile[i+hostname_idx]='\0'; break; }
+    }
+
 
   	MPI_Comm_rank(my_comm,&rank);
   	MPI_Comm_size(my_comm,&nproc);
 
-	/* Print the logged data to the local data file */
-  	f_time = fopen(outfile, "w");
-	fprintf(f_time, "[\n");
+	  /* Print the logged data to the local data file */
+  	f_time = fopen(hostname_outfile, "w");
+	  fprintf(f_time, "[\n");
   	for (i = 0; i < iterations; i++) {
 		fprintf( f_time, "{ " );
 		fprintf( f_time, " \"uniq_id\": \"%s\", "
