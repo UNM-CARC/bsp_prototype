@@ -39,6 +39,10 @@ RUN spack add sprng gsl openblas osu-micro-benchmarks \
     && spack env view regenerate \
     && spack clean -a
 
+# Install python dependencies for analysis scripts
+RUN yum install -y python3 python-pandas
+RUN pip3 install pandasql
+
 # Copy workload execution script
 COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype

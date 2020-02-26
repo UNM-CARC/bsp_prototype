@@ -58,6 +58,7 @@ MPI_Comm my_comm = 0;
 unsigned char DEBUG = 0;
 struct coll_time{
 	int rank;
+  	long int rstart;
   	double start;
   	double bstart;
   	double bend;
@@ -369,6 +370,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
   	double coll_bstart = 0.0;
   	double coll_bend = 0.0;
   	double rank_start_time = 0.0;
+  	time_t rank_start_walltime;
   	int i,j;
   	int rank = 0;
   	int nprocs = 0;
@@ -385,7 +387,8 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 
 	// If we're going to be doing a stencil, set up the cartesian communivator
 	// we will use.
-	if (stencil_size){
+	
+if (stencil_size){
 		setup_stencil(stencil_size, &left_rank, &right_rank, &up_rank, &down_rank,
 			      &left_buf, &right_buf, &up_buf, &down_buf, &values);
 	} 
@@ -395,6 +398,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 
 	//this is not used directly it is just for fining differences
 	rank_start_time = MPI_Wtime();
+	rank_start_walltime = time(NULL);
 
 	/* We start at -5 to do 5 warmup iterations that are not recorded */
   	for( i = -5; i < iterations; i++) {
@@ -432,6 +436,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		/* Don't record warmup iterations  */
 		if (i >= 0) {
 			times_buffer[ i ].rank = rank;
+			times_buffer[ i ].rstart = rank_start_walltime;
 			times_buffer[ i ].start = coll_start;
 			times_buffer[ i ].bstart = coll_bstart;
 			times_buffer[ i ].bend =  coll_bend;
@@ -540,6 +545,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
 			" \"rank\": %d, "
+			" \"hostname\": \"%s\", "
 			" \"workload\": \"%s\", "
 			" \"distribution\": \"%s\", "
 			" \"a\": %f, "
@@ -547,11 +553,12 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			" \"stencil_size\": %d, "
 			" \"iterations\": %d, "
 			" \"inner_loop_itr\": %d, ",
-			experimentID, (unsigned long)my_comm, nproc, rank,
-			workload_str, distribution, a, b, stencil_size,
-			iterations, innerloop_itr);
+			experimentID, (unsigned long)my_comm,
+      nproc, rank, hostbuffer, workload_str, distribution, 
+      a, b, stencil_size, iterations, innerloop_itr);
 		fprintf( f_time, 
 		     	" \"iteration\": %d, "
+		    	" \"rank_start\": %ld, "
 		    	" \"work_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
 		     	" \"barrier_end\": %.3lf, "
@@ -560,6 +567,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 				" \"interval_max_usec\": %.3lf "
 		     	" }",
 				i, 
+		     	times_buffer[i].rstart         ,
 		     	times_buffer[i].start         ,
 		     	times_buffer[i].bstart         ,
 		     	times_buffer[i].bend           ,

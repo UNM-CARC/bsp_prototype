@@ -12,6 +12,16 @@ if [ -f /home/docker/env.sh ]; then
   echo Workflow environment imported successfully.
 else
   echo Workflow environment not specified.
+  echo ===================================================
+  echo This image designed to be unpacked in a directory
+  echo on the host system. Host/container environment
+  echo sharing can only be provided if an env.sh
+  echo script is copied to /home/docker prior to running
+  echo this container.
+  echo; 
+  echo If you don\'t care about the host environment, 
+  echo unpack this container in an arbitrary and:
+  echo touch /home/docker/env.sh before running.
   exit 1
 fi
 
@@ -56,23 +66,14 @@ elif [[ $1 == "osu" ]]; then
     osu_bw "${@:2:$#}"
     exit "$?"
 
-elif [[ $1 == 'rabbit-server' ]]; then
-  rabbitmq-server
-  exit "$?"
-elif [[ $1 == 'rabbit-client' ]]; then
-  python /home/docker/rabit_functions.py "${@:1:$#}"
-  exit "$?"
 elif [ "$1" '=' 'orted' ]; then
-  echo checking orted
-  echo $(which orted)
-  ls -altr $(which orted)
-  echo inside entrypoint
-  #echo "${@:1:31} ${@:33:$#}";
-  #"${@:1:31} ${@:33:$#}";
-  #echo "${@:1:31} -mca pm_base_verbose 100";
-  #"${@:1:31} -mca pm_base_verbose 100";
   echo $@;
   "$@";
+
+elif [ "$1" '=' 'generate_dataframe' ]; then
+  echo Generating dataframe using container libs
+  /usr/bin/python3 ${WORKFLOW_DIR}/post-run/merge_df.py ${WORKFLOW_DIR};
+
 else
   /home/docker/commands.sh "$@" 
   exit $?
