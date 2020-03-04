@@ -26,11 +26,11 @@ export LDMS_SHM_INDEX="/ldms_shm_mpi_index"
 #########################################
 
 # Launch the LDMS sampler on all nodes
-echo STARTING SAMPLERS
-for i in $(cat $PBS_NODEFILE | uniq); do
-  ssh $i "source /etc/profile; module load openssl-1.1.1b-gcc-4.8.5-obdqvnl; module load singularity-3.2.1-gcc-4.8.5-ulix7vo; singularity exec -B /etc/hostname -B ${OUTPUT_DIR} ${CONTAINER_IMAGE_DIR}/bsp_prototype /opt/ldms_wheeler/start_sampler.sh"
-done;
-echo SAMPLERS SHOULD HAVE STARTED
+#echo STARTING SAMPLERS
+#for i in $(cat $PBS_NODEFILE | uniq); do
+#  ssh $i "source /etc/profile; module load openssl-1.1.1b-gcc-4.8.5-obdqvnl; module load singularity-3.2.1-gcc-4.8.5-ulix7vo; singularity exec -B /etc/hostname -B ${OUTPUT_DIR} ${CONTAINER_IMAGE_DIR}/bsp_prototype.sif /opt/ldms_wheeler/start_sampler.sh"
+#done;
+#echo SAMPLERS SHOULD HAVE STARTED
 
 ########################################
 #
@@ -39,8 +39,7 @@ echo SAMPLERS SHOULD HAVE STARTED
 ########################################
 
 # Same as above but with part of the environment shoved into the command
-export OMPI_MCA_orte_launch_agent="${CONTAINER_IMAGE_DIR}/bsp_prototype/home/docker/ompi_launch.sh"
-
+export OMPI_MCA_orte_launch_agent="${HOME}/popperized/pipelines/data_generator/run/ompi_launch.sh"
 
 ########################################
 #
@@ -48,14 +47,14 @@ export OMPI_MCA_orte_launch_agent="${CONTAINER_IMAGE_DIR}/bsp_prototype/home/doc
 #
 ########################################
 TIMER=$((-1*$(date +%s)))
-mpirun --map-by ppr:1:node -n $(( $PBS_NP/8 )) -x CONTAINER_IMAGE_DIR -x PBS_O_HOST -x LDMS_SHM_MPI_FUNC_INCLUDE -x PBS_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD --hostfile $PBS_NODEFILE /home/docker/bsp_prototype "$@" ${OUTFILE}
+mpirun --map-by ppr:1:node -n $(( $SLURM_NNODES )) -x CONTAINER_IMAGE_DIR -x LDMS_SHM_MPI_FUNC_INCLUDE -x SLURM_TACC_JOBNAME -x LDMS_MPI_PROFILER_PATH -x LDMS_SHM_INDEX -x LDMS_SHM_MPI_PROFILER_LOG_LEVEL -x LD_PRELOAD --hostfile /hostfile.txt /home/docker/bsp_prototype "$@" ${OUTFILE}
 echo Time taken to do workload is $(( $(date +%s) + ${TIMER} ))
 
 # Kill LDMS sampler on all nodes
-
-for i in $(cat $PBS_NODEFILE | uniq); do
-  echo ssh $i "kill \$(ps aux | grep ldmsd | grep -v grep | awk "\'"{print \$2}"\'")"
-  ssh $i "kill \$(ps aux | grep ldmsd | grep -v grep | awk "\'"{print \$2}"\'")"
-done;
+#
+#for i in $(cat $PBS_NODEFILE | uniq); do
+#  echo ssh $i "kill \$(ps aux | grep ldmsd | grep -v grep | awk "\'"{print \$2}"\'")"
+#  ssh $i "kill \$(ps aux | grep ldmsd | grep -v grep | awk "\'"{print \$2}"\'")"
+#done;
 
 exit "$?"
