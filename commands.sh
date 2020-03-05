@@ -39,7 +39,7 @@ export LDMS_SHM_INDEX="/ldms_shm_mpi_index"
 ########################################
 
 # Same as above but with part of the environment shoved into the command
-export OMPI_MCA_orte_launch_agent="${HOME}/popperized/pipelines/data_generator/run/ompi_launch.sh"
+export OMPI_MCA_orte_launch_agent="${CONTAINER_IMAGE_DIR}/bsp_prototype/home/docker/ompi_launch.sh"
 
 ########################################
 #
