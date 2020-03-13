@@ -302,7 +302,7 @@ void fill(double *p, int n)
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
-  	enum rng_type rng_type = init_rng_type(distribution);
+  	rng_type = init_rng_type(distribution);
 	switch (w) {
 	case WORKLOAD_SLEEP:
   		if (rng_type < 0) {
