@@ -4,7 +4,7 @@ export PATH=$PATH:/opt/software/linux-centos7-x86_64/gcc-8.3.1/osu-micro-benchma
 export PYTHONPATH="/root/.local/lib/python3.6/site-packages":$PYTHONPATH
 export HOST=`hostname`
 RABBIT_SCRIPT="/home/docker/rabit_functions.py"
-if [[ $1 == "osu" ]] 
+if [[ $1 == "osu" ]]
 then
 	#passing all but the first arg to osu_bw
 	osu_bw "${@:2:$#}"
@@ -25,5 +25,9 @@ then
 fi
 export OUTFILE=`mktemp /tmp/results/${HOST}_XXXXXXXX.json`
 /home/docker/bsp_prototype "$@" ${OUTFILE}
-mv ${OUTFILE} /results/
+rm ${OUTFILE}# Let the bsp_prototype actually crate hte file i  f it wants it.
+/home/docker/bsp_prototype "$@" ${OUTFILE}
+if [ -f ${OUTFILE}  ]; then
+    mv ${OUTFILE} /results/
+fi
 exit "$?"

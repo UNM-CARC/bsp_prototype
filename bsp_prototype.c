@@ -486,7 +486,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
   	for (i = 0; i < iterations; i++) {
 		fprintf( f_time, "{ " );
 		fprintf( f_time, " \"uniq_id\": \"%s\", "
-			" \"communicator\": \"%lu\", "
+			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
 			" \"rank\": %d, "
 			" \"workload\": \"%s\", "
