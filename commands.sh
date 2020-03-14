@@ -24,7 +24,6 @@ then
 
 fi
 export OUTFILE=`mktemp /tmp/results/${HOST}_XXXXXXXX.json`
-/home/docker/bsp_prototype "$@" ${OUTFILE}
 rm ${OUTFILE}# Let the bsp_prototype actually crate hte file i  f it wants it.
 /home/docker/bsp_prototype "$@" ${OUTFILE}
 if [ -f ${OUTFILE}  ]; then
