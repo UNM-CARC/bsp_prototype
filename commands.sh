@@ -1,6 +1,8 @@
 #!/bin/bash
 mkdir -p /tmp/results/
-export PATH=$PATH:/opt/software/linux-centos7-x86_64/gcc-8.3.1/osu-micro-benchmarks-5.6.1-gxlojmj2kwdr366txez2ko6tw75yi4o3/libexec/osu-micro-benchmarks/mpi/pt2pt
+#OSU is not automatically added to the path!
+osu_path=$(find /opt/software/linux-centos7-ivybridge/gcc-8.3.1/ -name pt2pt | head -n 1)
+export PATH="${osu_path}/":$PATH
 export PYTHONPATH="/root/.local/lib/python3.6/site-packages":$PYTHONPATH
 export HOST=`hostname`
 RABBIT_SCRIPT="/home/docker/rabit_functions.py"
