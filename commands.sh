@@ -1,8 +1,10 @@
 #!/bin/bash
 mkdir -p /tmp/results/
 #OSU is not automatically added to the path!
+
 osu_path=$(find /opt/software/ -name pt2pt | head -n 1)
 export PATH="${osu_path}/":$PATH
+
 export PYTHONPATH="/root/.local/lib/python3.6/site-packages":$PYTHONPATH
 export HOST=`hostname`
 RABBIT_SCRIPT="/home/docker/rabit_functions.py"
