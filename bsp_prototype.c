@@ -53,7 +53,7 @@
 #define RABBIT_MESSAGE_COUNT 2
 //the probability for making a rabbit send call
 #define RABBIT_PROB 0.1
-
+#define VERBOSE_RABBIT_SEND 0
 static unsigned int makeRabbitCalls = 0;
 static char rabbitIP[18]; // this will be read from command line (-r option)
 #define RABBIT_PORT 5672 // this is rabbit broker's defualt port
@@ -194,22 +194,21 @@ double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, doubl
 	do {
 		switch (rng_type) {
 		case RNG_GAUSSIAN:
-      	    		inter_mean = a;
+			inter_mean = a;
 			inter_stddev = b;
-
-        		inter_time =  gsl_ran_gaussian (r, inter_stddev) + inter_mean;
+			inter_time =  gsl_ran_gaussian (r, inter_stddev) + inter_mean;
 			break;
-    		case RNG_EXPONENTIAL:
-        		inter_mean = a;
-        		inter_time =  gsl_ran_exponential (r, inter_mean);
+		case RNG_EXPONENTIAL:
+			inter_mean = a;
+			inter_time =  gsl_ran_exponential (r, inter_mean);
 			break;
-    		case RNG_FLAT:
-        		inter_time = gsl_ran_flat (r,a,b);
+		case RNG_FLAT:
+			inter_time = gsl_ran_flat (r,a,b);
 			break;
 		case RNG_PARETO:	
-      			exponent = a;
-      			scale = b;
-      			inter_time = gsl_ran_pareto (r,exponent,scale);
+			exponent = a;
+			scale = b;
+			inter_time = gsl_ran_pareto (r,exponent,scale);
 			break;
 		/* Note the straight return out in the next two to avoid the
  		 * while loop if a is 0.0 */
@@ -460,13 +459,13 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 				MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
 				// with uniform probability send rabbit mesages
 				if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
-					sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, 1);
+					sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, VERBOSE_RABBIT_SEND);
 				}
 				MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
 				// in case we do not have stencil but we still wanna do rabbit!
 				}else if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
 				//the '1' means produce verbose output
-				sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, 1);
+				sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, VERBOSE_RABBIT_SEND);
 			}
 		}//end of inner loop
 
@@ -658,43 +657,43 @@ int main(int argc, char *argv[])
  	 * this application. */
 	while ((c = getopt_long(argc, argv, shortargs, longargs, &optindex)) != -1)
 	{
-		switch (c) {
-      case 'a':
-        sscanf(optarg, "%lf", &a);
-        break;
-      case 'b':
-        sscanf(optarg, "%lf", &b);
-        break;
-      case 'd':
-        strncpy(distribution, optarg, 256);
-        break;
-      case 'i':
-        sscanf(optarg, "%lu", &iterations);
-        break;
-			case 'v':
-				verbose = 1;
-				break;
-				case 's':
-				sscanf(optarg, "%lu", &initseed);
-					break;
-			case 'h':
-				usage(argv[0]);
-				exit(0);
-				break;
-			case 'm':
-				makeRabbitCalls = 1;
-				sscanf(optarg, "%s", rabbitIP);
-				break;
-			case 't':
-				sscanf(optarg, "%d", &stencil_size);
-				break;
-			case 'l':
-				sscanf(optarg, "%d", &innerloop_itr);
-				break;
-			case 'g':
-				DEBUG = 1;
-				break;
-			case 'w':
+	switch (c) {
+      	case 'a':
+        	sscanf(optarg, "%lf", &a);
+        	break;
+      	case 'b':
+        	sscanf(optarg, "%lf", &b);
+        	break;
+      	case 'd':
+        	strncpy(distribution, optarg, 256);
+        	break;
+      	case 'i':
+        	sscanf(optarg, "%lu", &iterations);
+        	break;
+		case 'v':
+			verbose = 1;
+			break;
+		case 's':
+			sscanf(optarg, "%lu", &initseed);
+			break;
+		case 'h':
+			usage(argv[0]);
+			exit(0);
+			break;
+		case 'm':
+			makeRabbitCalls = 1;
+			sscanf(optarg, "%s", rabbitIP);
+			break;
+		case 't':
+			sscanf(optarg, "%d", &stencil_size);
+			break;
+		case 'l':
+			sscanf(optarg, "%d", &innerloop_itr);
+			break;
+		case 'g':
+			DEBUG = 1;
+			break;
+		case 'w':
 				workload_str = optarg;
 				if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
 				else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
