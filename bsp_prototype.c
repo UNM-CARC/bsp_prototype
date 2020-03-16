@@ -70,7 +70,7 @@ static char rabbitIP[18]; // this will be read from command line (-r option)
  */
 
 MPI_Comm my_comm = 0;
-unsigned char DEBUG = 0;
+unsigned char DEBUG = 1;
 struct coll_time{
 	int rank;
   	double start;
@@ -694,24 +694,24 @@ int main(int argc, char *argv[])
 			DEBUG = 1;
 			break;
 		case 'w':
-				workload_str = optarg;
-				if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
-				else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
-	//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
-	//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
-	//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
-				else {
-					fprintf(stderr, "Unknown workload type %s.\n", optarg);
-					usage(argv[0]);
-					exit(0);
-				}
-				break;
-				case '?':
-				default:
-					/* getopt_long already printed an error message. */
+			workload_str = optarg;
+			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
+//			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
+//			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
+//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
+			else {
+				fprintf(stderr, "Unknown workload type %s.\n", optarg);
 				usage(argv[0]);
-				exit(-1);
-					break;
+				exit(0);
+			}
+			break;
+		case '?':
+		default:
+			/* getopt_long already printed an error message. */
+			usage(argv[0]);
+			exit(-1);
+			break;
 			}
 	} 
 
