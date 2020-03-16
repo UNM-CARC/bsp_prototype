@@ -18,7 +18,7 @@ COPY sprng.py /opt/spack/var/spack/repos/builtin/packages/sprng/package.py
 # Add the new packages we want to the environment and regenerate its
 # view in /usr/local
 WORKDIR /home/docker
-COPY Makefile bsp_prototype.c gsl-sprng.h /home/docker/
+COPY Makefile bsp_prototype.c gsl-sprng.h commands.sh amqp_producer.[c,h] rabit_functions.py /home/docker/
 RUN spack add sprng gsl openblas osu-micro-benchmarks\
     && spack concretize \
     && spack install \
@@ -29,11 +29,10 @@ RUN spack add sprng gsl openblas osu-micro-benchmarks\
 # that will be run on container start.
 
 #--user did not work for pip install!
-RUN yum install -y rabbitmq-server.noarch python3\
+
+RUN yum install -y rabbitmq-server.noarch librabbitmq-devel python3\
     && pip3 install pika --upgrade\ 
     && echo "[{rabbit, [{loopback_users, []}]}]." > /etc/rabbitmq/rabbitmq.config
-COPY commands.sh /home/docker/commands.sh
 RUN make bsp_prototype
-COPY rabit_functions.py /home/docker/rabit_functions.py
 RUN ["chmod", "+x", "/home/docker/commands.sh"]
 CMD ["/home/docker/commands.sh"] 

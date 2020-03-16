@@ -39,11 +39,26 @@
 #include <time.h>
 #include <sys/time.h>
 
+//the header for amq send and util functions
+#include "amqp_producer.h"
 //Stencil Radius
 #define RADIUS 1
 #define SECOND_TO_MICRO_FACTOR 1000000
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
+
+// Rabit constants
+// The message size: 8 KB
+#define RABBIT_MESSAGE_SIZE 2<<13
+#define RABBIT_MESSAGE_COUNT 2
+//the probability for making a rabbit send call
+#define RABBIT_PROB 0.1
+
+static unsigned int makeRabbitCalls = 0;
+static char rabbitIP[18]; // this will be read from command line (-r option)
+#define RABBIT_PORT 5672 // this is rabbit broker's defualt port
+
+
 /*
  * If distribution is:
  * exponential,    a = interarrival mean
@@ -169,7 +184,7 @@ enum rng_type init_rng_type(char *distribution)
 		return RNG_PARETO;
     	} else if (strcmp(distribution, "constant") == 0)
 		return RNG_CONSTANT;
-	else return RNG_ERROR;
+	else return RNG_GAUSSIAN;
 }
 
 double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, double b) 
@@ -201,6 +216,7 @@ double generate_interval_rng(gsl_rng *r, enum rng_type rng_type, double a, doubl
 		case RNG_CONSTANT:
 			return a;
 		default:
+			puts("No distribution specified - Using Gaussian as default");
 			return 0.0;
 		}
 	} while (inter_time < 0.0);
@@ -239,6 +255,22 @@ void divideLeftOver(const int rank, const int cores, const int gridSize, const i
 }
 */
 
+//establish the connection to the broker. Return connection upon success, die otherwise!
+amqp_connection_state_t getAmqpConnection(){
+	amqp_connection_state_t conn;
+	if (DEBUG){
+		fprintf(stdout, "trying to connect to host %s port %d\n", rabbitIP, RABBIT_PORT);
+	}
+	if(setupAmq(&conn, rabbitIP, RABBIT_PORT)){
+		fprintf(stderr, "could not open connection\n");
+		MPI_Finalize();
+		exit(-1);
+	}
+	if (DEBUG){
+		fprintf(stdout, "Successfully openned connection to %s:%d\n", rabbitIP, RABBIT_PORT);
+	}
+	return conn;
+}
 
 /*
  * Set up communicator and directions for stencil communication
@@ -302,23 +334,23 @@ void fill(double *p, int n)
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
-  	enum rng_type rng_type = init_rng_type(distribution);
+  	rng_type = init_rng_type(distribution);
 	switch (w) {
 	case WORKLOAD_SLEEP:
   		if (rng_type < 0) {
-      			return -1;
+			return -1;
   		}
 		break;
 	case WORKLOAD_DGEMM:
 		DGEMM_N = a;
 		DGEMM_iter = b;
 		buf = (double *)malloc(3 * (int)DGEMM_N * (int)DGEMM_N * sizeof(double));
-                DGEMM_A = buf + 0;
-                DGEMM_B = DGEMM_A + DGEMM_N * DGEMM_N;
-                DGEMM_C = DGEMM_B + DGEMM_N * DGEMM_N;
-                fill(DGEMM_A, DGEMM_N * DGEMM_N);
-                fill(DGEMM_B, DGEMM_N * DGEMM_N);
-                fill(DGEMM_C, DGEMM_N * DGEMM_N);
+		DGEMM_A = buf + 0;
+		DGEMM_B = DGEMM_A + DGEMM_N * DGEMM_N;
+		DGEMM_C = DGEMM_B + DGEMM_N * DGEMM_N;
+		fill(DGEMM_A, DGEMM_N * DGEMM_N);
+		fill(DGEMM_B, DGEMM_N * DGEMM_N);
+		fill(DGEMM_C, DGEMM_N * DGEMM_N);
 		break;
 	default:
 		assert(0 && "Unknown workload!");
@@ -362,24 +394,34 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
  */
 
 int barrier_loop(double a, double b, char * distribution, int stencil_size, int innerloop_itr, int iterations, 
-		 struct coll_time * times_buffer, double cpn, gsl_rng *r)
+		 struct coll_time * times_buffer, double cpn, gsl_rng *r, amqp_connection_state_t conn)
 {
-  	double coll_start = 0.0;
-  	double coll_bstart = 0.0;
-  	double coll_bend = 0.0;
-  	double rank_start_time = 0.0;
-  	int i,j;
-  	int rank = 0;
-  	int nprocs = 0;
-    MPI_Request requests[8];
+  double coll_start = 0.0;
+  double coll_bstart = 0.0;
+  double coll_bend = 0.0;
+  double rank_start_time = 0.0;
+  int i,j;
+  int rank = 0;
+  int nprocs = 0;
+  MPI_Request requests[8];
 	int left_rank, right_rank, up_rank, down_rank;
 	double *left_buf, *right_buf, *up_buf, *down_buf, *values;
+	char *rabbit_message;
 
 	for (i = 0; i < 8; i++)
 		requests[i] = MPI_REQUEST_NULL;
 
 	if (init_workload(workload, r, distribution, a, b)) {
+		fprintf(stderr, "ERROR: could not initialize the workload!");
 		return -1;
+	}
+	//initializing the rabbit message
+	if(makeRabbitCalls){
+		rabbit_message = (char*) myAlloc(RABBIT_MESSAGE_SIZE);
+		int i;
+		for (i = 0; i < RABBIT_MESSAGE_SIZE ; i++) {
+    		rabbit_message[i] = 'a';
+  		}
 	}
 
 	// If we're going to be doing a stencil, set up the cartesian communivator
@@ -416,7 +458,15 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 				MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
 				MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
 				MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
+				// with uniform probability send rabbit mesages
+				if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
+					sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, 1);
+				}
 				MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
+				// in case we do not have stencil but we still wanna do rabbit!
+				}else if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
+				//the '1' means produce verbose output
+				sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, 1);
 			}
 		}//end of inner loop
 
@@ -439,6 +489,9 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 	//freeing the bufferes used for MPI exchange operations
 	if(stencil_size){
 		tear_down_stencil(right_buf, left_buf, up_buf, down_buf, values);
+	}
+	if(makeRabbitCalls){
+		free(rabbit_message);
 	}
 	return 0;
 }
@@ -545,15 +598,16 @@ static struct option longargs[] =
 	{"verbose", no_argument, 0, 'v'},
 	{"workload", required_argument, 0, 'w'},
 	{"innerloop", required_argument, 0, 'l'},
+	{"rabbitmessage", required_argument, 0, 'm'},
 	{0, 0, 0, 0}
 };
 
-static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:";
+static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:m:";
 
 void usage(char *progname)
 {
 	printf("usage: %s [-w workload-type] [-d distribution] [-a workload-aval] [-b workload-bval] [-i iterations] [-s initial seed]\
-	 [-t stencil_size] [-l inner loop iterations] [-v] [-g] filename\n", progname);
+	 [-t stencil_size] [-l inner loop iterations] [-m rabbit message mode (0/1)] [-v] [-g] filename\n", progname);
 
 	return;
 }
@@ -594,6 +648,7 @@ int main(int argc, char *argv[])
 	my_comm = MPI_COMM_WORLD;
   	MPI_Comm_size(my_comm, &nprocs);
   	MPI_Comm_rank(my_comm, &rank);
+	amqp_connection_state_t conn = NULL;
 
 	for (int i = 0; i < argc; i++)
 		printf("%s ", argv[i]);
@@ -604,18 +659,18 @@ int main(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, shortargs, longargs, &optindex)) != -1)
 	{
 		switch (c) {
-        	case 'a':
-			sscanf(optarg, "%lf", &a);
-          		break;
-        	case 'b':
-			sscanf(optarg, "%lf", &b);
-          		break;
-        	case 'd':
-          		strncpy(distribution, optarg, 256);
-          		break;
-        	case 'i':
-			sscanf(optarg, "%lu", &iterations);
-          		break;
+      case 'a':
+        sscanf(optarg, "%lf", &a);
+        break;
+      case 'b':
+        sscanf(optarg, "%lf", &b);
+        break;
+      case 'd':
+        strncpy(distribution, optarg, 256);
+        break;
+      case 'i':
+        sscanf(optarg, "%lu", &iterations);
+        break;
 			case 'v':
 				verbose = 1;
 				break;
@@ -625,6 +680,10 @@ int main(int argc, char *argv[])
 			case 'h':
 				usage(argv[0]);
 				exit(0);
+				break;
+			case 'm':
+				makeRabbitCalls = 1;
+				sscanf(optarg, "%s", rabbitIP);
 				break;
 			case 't':
 				sscanf(optarg, "%d", &stencil_size);
@@ -665,6 +724,13 @@ int main(int argc, char *argv[])
 	}
 	outfile = argv[optind];
 
+	//Do we need to perform rabbit calls>?
+	if(makeRabbitCalls){
+	//reading configs from file and openning amqp conn
+		conn = getAmqpConnection();
+	// if this returns then we know the connection has been established
+	}
+
   	/*
    	 *  We use GSL (GSU Scientific Library) + SPRNG (The Scalable Parallel 
    	 *  Random Number Generators Library) for random numbers. 
@@ -689,9 +755,15 @@ int main(int argc, char *argv[])
 		stencil_size = 0;
 	}
 
-  ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
-			times_buffer, cpn, r);
-
+  	ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
+			times_buffer, cpn, r, conn);
+	//closing the connection ro rabbit broker
+	if(makeRabbitCalls){
+		shutdownAmpq(conn);
+		if(DEBUG){
+			fprintf(stdout, "completed; closing the connection\n"); 
+		}
+	}
 	set_experiment_id(r);
 
 	reduce_workload_max(times_buffer, iterations);
