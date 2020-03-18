@@ -331,7 +331,7 @@ enum rng_type rng_type = RNG_ERROR;
 double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
-struct {
+struct io_params_s {
   size_t io_size;
   FILE *handle;
   char *fname;
@@ -432,14 +432,15 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 	    static char buf[FNAMELEN];
 	    static size_t iter = 0;
 	    MPI_Comm_rank( my_comm, &my_rank );
-
+	    
 	    snprintf( buf, FNAMELEN, "%s%s%s.%d.%d", io_params.pname, io_params.slash, io_params.fname, my_rank, iter++ );
 	    io_params.handle = fopen( buf, "w" );
-	    fwrite( io_params.ary, sizeof(char), io_params.amount, io_params.handle );
+	    fwrite( io_params.ary, sizeof(char), io_params.io_size, io_params.handle );
 	    fclose( io_params.handle );
-	    break;
+	  }
+	  break;
 	default:
-		assert(0 && "Unknown workload!");
+	  assert(0 && "Unknown workload!");
 	}
 }
 
@@ -661,6 +662,7 @@ static struct option longargs[] =
 	{"workload", required_argument, 0, 'w'},
 	{"innerloop", required_argument, 0, 'l'},
 	{"rabbitmessage", required_argument, 0, 'm'},
+	{"io-size", required_argument, 0, 'z'},
 	{0, 0, 0, 0}
 };
 
@@ -769,6 +771,9 @@ int main(int argc, char *argv[])
 				exit(0);
 			}
 			break;
+	case 'z':
+	  sscanf( optarg, "%lu", &io_params.io_size );
+	  break;
 		case '?':
 		default:
 			/* getopt_long already printed an error message. */
