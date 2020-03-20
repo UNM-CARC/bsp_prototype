@@ -332,7 +332,7 @@ double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
 struct io_params_s {
-  size_t io_size;
+  size_t io_size = 1;
   FILE *handle;
   char *fname;
   char *pname;
@@ -350,6 +350,7 @@ void fill(double *p, int n)
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
+	size_t realiosize;
   	rng_type = init_rng_type(distribution);
 	switch (w) {
 	case WORKLOAD_SLEEP:
@@ -369,8 +370,9 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 		fill(DGEMM_C, DGEMM_N * DGEMM_N);
 		break;
 	case WORKLOAD_IO:
-	  assert( (io_params.ary = (char*) malloc( io_params.io_size ) ) != NULL );
-	  for( size_t i = 0; i < io_params.io_size; i++ ) {
+	  realiosize = io_params.io_size * 1024;
+	  assert( (io_params.ary = (char*) malloc( realiosize ) ) != NULL );
+	  for( size_t i = 0; i < realiosize; i++ ) {
 	    io_params.ary[i] = rand();
 	  }
 	  io_params.fname = getenv( "BSPGEN_FILE_IO_NAME" );
@@ -435,7 +437,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 	    
 	    snprintf( buf, FNAMELEN, "%s%s%s.%d.%d", io_params.pname, io_params.slash, io_params.fname, my_rank, iter++ );
 	    io_params.handle = fopen( buf, "w" );
-	    fwrite( io_params.ary, sizeof(char), io_params.io_size, io_params.handle );
+	    fwrite( io_params.ary, sizeof(char), io_params.io_size * 1024, io_params.handle );
 	    fclose( io_params.handle );
 	  }
 	  break;
@@ -666,7 +668,7 @@ static struct option longargs[] =
 	{0, 0, 0, 0}
 };
 
-static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:m:";
+static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:m:z:";
 
 void usage(char *progname)
 {
