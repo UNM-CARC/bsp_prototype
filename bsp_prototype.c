@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -38,6 +39,12 @@
 
 #include <time.h>
 #include <sys/time.h>
+
+#ifdef PATH_MAX
+#define FNAMELEN (PATH_MAX + NAME_MAX)
+#else
+#define FNAMELEN (NAME_MAX + 3)
+#endif
 
 //the header for amq send and util functions
 #include "amqp_producer.h"
@@ -84,7 +91,7 @@ enum bsp_workload {
 	WORKLOAD_DGEMM,
 	WORKLOAD_STREAM,
 	WORKLOAD_FBENCH,
-	WORKLOAD_IOR
+	WORKLOAD_IO
 };
 enum bsp_workload workload = WORKLOAD_SLEEP;
 char *workload_str = "sleep";
@@ -324,15 +331,26 @@ enum rng_type rng_type = RNG_ERROR;
 double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
+struct io_params_s {
+  size_t io_size = 1;
+  FILE *handle;
+  char *fname;
+  char *pname;
+  char *ary;
+  char *slash;
+} io_params;
+
 void fill(double *p, int n)
 {
 	for (int i = 0; i < n; ++i)
 		p[i] = 2 * drand48() - 1;
 }
 
+
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
+	size_t realiosize;
   	rng_type = init_rng_type(distribution);
 	switch (w) {
 	case WORKLOAD_SLEEP:
@@ -351,12 +369,44 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 		fill(DGEMM_B, DGEMM_N * DGEMM_N);
 		fill(DGEMM_C, DGEMM_N * DGEMM_N);
 		break;
+	case WORKLOAD_IO:
+	  realiosize = io_params.io_size * 1024;
+	  assert( (io_params.ary = (char*) malloc( realiosize ) ) != NULL );
+	  for( size_t i = 0; i < realiosize; i++ ) {
+	    io_params.ary[i] = rand();
+	  }
+	  io_params.fname = getenv( "BSPGEN_FILE_IO_NAME" );
+	  if (io_params.fname == NULL || strlen( io_params.fname ) == 0) {
+	    io_params.fname = "BSPGEN_FILE_IO";
+	  }
+	  
+	  io_params.pname = getenv( "BSPGEN_FILE_IO_PATH" );
+	  if (io_params.pname == NULL) {
+	    io_params.pname = "";
+	    io_params.slash = "";
+	  } else {
+	    /* Even if the pname ends in /, adding an extra / shouldn't 
+	       hurt on any POSIX-flavored filesystem  */
+	    io_params.slash = "/";
+	  }
+	  break;
 	default:
 		assert(0 && "Unknown workload!");
 	}
 	return 0;
 }
 
+void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b )
+{
+  switch(w) {
+  case WORKLOAD_IO:
+    free( io_params.ary );
+    break;
+  default:
+    break;
+  }
+}
+	  
 
 /* Do one iteration of whatever comoute workload was requested */
 void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
@@ -378,8 +428,21 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 				    DGEMM_N, 1.0, (double *)DGEMM_C, DGEMM_N);
 		}
 		break;
+	case WORKLOAD_IO:
+	  {
+	    int my_rank;
+	    static char buf[FNAMELEN];
+	    static size_t iter = 0;
+	    MPI_Comm_rank( my_comm, &my_rank );
+	    
+	    snprintf( buf, FNAMELEN, "%s%s%s.%d.%d", io_params.pname, io_params.slash, io_params.fname, my_rank, iter++ );
+	    io_params.handle = fopen( buf, "w" );
+	    fwrite( io_params.ary, sizeof(char), io_params.io_size * 1024, io_params.handle );
+	    fclose( io_params.handle );
+	  }
+	  break;
 	default:
-		assert(0 && "Unknown workload!");
+	  assert(0 && "Unknown workload!");
 	}
 }
 
@@ -492,6 +555,9 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 	if(makeRabbitCalls){
 		free(rabbit_message);
 	}
+
+	cleanup_workload(workload, r, distribution, a, b);
+
 	return 0;
 }
 
@@ -598,10 +664,11 @@ static struct option longargs[] =
 	{"workload", required_argument, 0, 'w'},
 	{"innerloop", required_argument, 0, 'l'},
 	{"rabbitmessage", required_argument, 0, 'm'},
+	{"io-size", required_argument, 0, 'z'},
 	{0, 0, 0, 0}
 };
 
-static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:m:";
+static char *shortargs = (char *)"a:b:d:i:n:s:t:l:hgvw:m:z:";
 
 void usage(char *progname)
 {
@@ -699,13 +766,16 @@ int main(int argc, char *argv[])
 			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
 //			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
 //			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
-//			else if (strcmp(optarg, "ior") == 0) workload = WORKLOAD_IOR;
+			else if (strcmp(optarg, "io") == 0) workload = WORKLOAD_IO;
 			else {
 				fprintf(stderr, "Unknown workload type %s.\n", optarg);
 				usage(argv[0]);
 				exit(0);
 			}
 			break;
+	case 'z':
+	  sscanf( optarg, "%lu", &io_params.io_size );
+	  break;
 		case '?':
 		default:
 			/* getopt_long already printed an error message. */
