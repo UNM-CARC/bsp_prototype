@@ -432,10 +432,9 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 	  {
 	    int my_rank;
 	    static char buf[FNAMELEN];
-	    static size_t iter = 0;
 	    MPI_Comm_rank( my_comm, &my_rank );
 	    
-	    snprintf( buf, FNAMELEN, "%s%s%s.%d.%d", io_params.pname, io_params.slash, io_params.fname, my_rank, iter++ );
+	    snprintf( buf, FNAMELEN, "%s%s%s.%d", io_params.pname, io_params.slash, io_params.fname, my_rank );
 	    io_params.handle = fopen( buf, "w" );
 	    fwrite( io_params.ary, sizeof(char), io_params.io_size * 1024, io_params.handle );
 	    fclose( io_params.handle );
