@@ -47,7 +47,9 @@
 #endif
 
 //the header for amq send and util functions
+extern "C" {
 #include "amqp_producer.h"
+}
 //Stencil Radius
 #define RADIUS 1
 #define SECOND_TO_MICRO_FACTOR 1000000
