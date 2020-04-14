@@ -3,21 +3,16 @@ cmake_minimum_required( VERSION 3.2 )
 
 find_package( MPI REQUIRED )
 message( STATUS "MPI_CXX_FOUND = ${MPI_CXX_FOUND}" )
-if( MPI_C_FOUND AND NOT TARGET MPI::MPI_C )
-  # synthesize an import target
-  add_library( MPI::MPI_C INTERFACE IMPORTED )
-  target_link_libraries( MPI::MPI_C INTERFACE ${MPI_C_LIBRARIES} )
-  target_include_directories( MPI::MPI_C INTERFACE ${MPI_C_LIBRARIES} )
-  target_compile_options( MPI::MPI_C INTERFACE ${MPI_C_COMPILE_OPTIONS} )
-  target_compile_definitions( MPI::MPI_C INTERFACE ${MPI_C_COMPILE_DEFINITIONS} )
-endif()
+message( STATUS "MPI_CXX_LIBRARIES = ${MPI_CXX_LIBRARIES}" )
 if( MPI_CXX_FOUND AND NOT TARGET MPI::MPI_CXX )
   # synthesize an import target
   add_library( MPI::MPI_CXX INTERFACE IMPORTED )
-  target_link_libraries( MPI::MPI_CXX INTERFACE ${MPI_CXX_LIBRARIES} )
-  target_include_directories( MPI::MPI_CXX INTERFACE ${MPI_CXX_LIBRARIES} )
-  target_compile_options( MPI::MPI_CXX INTERFACE ${MPI_CXX_COMPILE_OPTIONS} )
-  target_compile_definitions( MPI::MPI_CXX INTERFACE ${MPI_CXX_COMPILE_DEFINITIONS} )
+  set_target_properties( MPI::MPI_CXX PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_PATH}"
+      INTERFACE_LINK_LIBRARIES "${MPI_CXX_LIBRARIES}"
+      INTERFACE_COMPILE_OPTIONS "${MPI_CXX_COMPILE_OPTIONS}"
+      INTERFACE_COMPILE_DEFINITIONS "${MPI_CXX_COMPILE_DEFINITIONS}"
+      )
 endif()
 
 
@@ -54,8 +49,10 @@ ELSE()
 ENDIF()
 
 add_library( SPRNG::sprng INTERFACE IMPORTED )
-target_include_directories( SPRNG::sprng INTERFACE ${SPRNG_INCLUDE_DIR} )
-target_link_libraries( SPRNG::sprng INTERFACE ${SPRNG_LIBRARY} )
+set_target_properties( SPRNG::sprng PROPERTIES
+		       INTERFACE_INCLUDE_DIRECTORIES "${SPRNG_INCLUDE_DIR}"
+		       INTERFACE_LINK_LIBRARIES "${SPRNG_LIBRARY}"
+)		       
 
 # Look for GSL (a lot less complicated because FindGSL.cmake exists
 find_package( GSL REQUIRED )
