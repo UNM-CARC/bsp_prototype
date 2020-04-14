@@ -32,9 +32,17 @@ SET(TRY_INCLUDE_PATHS
   /opt/local/include
   /opt/local/include/sprng
   ${CMAKE_SOURCE_DIR}/include
-)
+  )
 
-find_library( SPRNG_LIBRARY sprng )
+set( TRY_LINK_PATHS
+  /usr/lib
+  /usr/local/lib
+  /sw/lib
+  /opt/local/lib
+  ${CMAKE_SOURCE_DIR}/lib
+  )
+
+find_library( SPRNG_LIBRARY sprng PATHS ${TRY_LINK_PATHS} $ENV{SPRNG_ROOT}/lib )
 find_path( SPRNG_INCLUDE_DIR sprng.h PATHS ${TRY_INCLUDE_PATHS} $ENV{SPRNG_ROOT}/include )
 
 IF(SPRNG_INCLUDE_DIR AND SPRNG_LIBRARY)
@@ -62,7 +70,7 @@ pkg_search_module( rabbitmq librabbitmq IMPORTED_TARGET GLOBAL REQUIRED )
 message( STATUS "RabbitMQ found: ${rabbitmq_LIBRARIES}" )
 
 # We found everything, set up the build
-set( SOURCES bsp_prototype.cc amqp_producer.c amqp_producer.h )
+set( SOURCES bsp_prototype.cc amqp_producer.c )
 add_executable( bsp_prototype ${SOURCES} )
 set_target_properties( bsp_prototype PROPERTIES LINKER_LANGUAGE CXX )
 target_link_libraries( bsp_prototype GSL::gsl GSL::gslcblas SPRNG::sprng PkgConfig::rabbitmq MPI::MPI_CXX )
