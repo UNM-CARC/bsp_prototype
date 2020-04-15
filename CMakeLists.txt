@@ -1,6 +1,8 @@
 project( bsp_prototype LANGUAGES CXX C )
 cmake_minimum_required( VERSION 3.2 )
 
+set( CMAKE_CXX_STANDARD 11 )
+
 find_package( MPI REQUIRED )
 message( STATUS "MPI_CXX_FOUND = ${MPI_CXX_FOUND}" )
 message( STATUS "MPI_CXX_LIBRARIES = ${MPI_CXX_LIBRARIES}" )

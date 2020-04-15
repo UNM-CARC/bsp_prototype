@@ -7,7 +7,8 @@
  * https://github.com/jeffhammond/PRK
  *
  */
-
+#include <sstream>
+#include <iomanip>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -596,55 +597,42 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 	int rank, nproc;
   	int i;
 	int mpi_write = 1;
-	char *ostr = NULL;
+	std::ostringstream ostr;
 
   	MPI_Comm_rank(my_comm,&rank);
   	MPI_Comm_size(my_comm,&nproc);
-	ostr = static_cast<char*> (malloc( iterations * 512 * sizeof(char) ));
-	memset( ostr, 0, iterations * 512 );
 
-	sprintf(ostr, "[\n");
+	ostr << std::setprecision(10) << std::fixed 
+	     << "[\n";
   	for (i = 0; i < iterations; i++) {
-		sprintf( ostr, "{ " );
-		sprintf( ostr, " \"uniq_id\": \"%s\", "
-			" \"communicator\": %lu, "
-			" \"comm_size\": %d, "
-			" \"rank\": %d, "
-			" \"workload\": \"%s\", "
-			" \"distribution\": \"%s\", "
-			" \"a\": %f, "
-			" \"b\": %f, "
-			" \"stencil_size\": %d, "
-			" \"iterations\": %d, "
-			" \"inner_loop_itr\": %d, ",
-			experimentID, (unsigned long)my_comm, nproc, rank,
-			workload_str, distribution, a, b, stencil_size,
-			iterations, innerloop_itr);
-		sprintf( ostr, 
-		     	" \"iteration\": %d, "
-		    	" \"work_start\": %.3lf, "
-		     	" \"barrier_start\": %.3lf, "
-		     	" \"barrier_end\": %.3lf, "
-		     	" \"workload_usec\": %.3lf, "
-				" \"workload_max_usec\": %.3lf, "
-				" \"interval_max_usec\": %.3lf "
-		     	" }",
-				i, 
-		     	times_buffer[i].start         ,
-		     	times_buffer[i].bstart         ,
-		     	times_buffer[i].bend           ,
-		     	times_buffer[i].bstart - times_buffer[i].start,
-				times_buffer[i].workload_max,
-				times_buffer[i].bend - times_buffer[i].start );
-
-		if (i + 1 < iterations) {
-		  sprintf(ostr, ",\n");
-		} else {
-			sprintf(ostr, "\n");
-		}
-  	}
-	sprintf(ostr, "]\n");
-
+	  ostr << "{ "
+	       << " \"uniq_id\": \"" << experimentID << "\", "
+	       << " \"communicator\": \"" << (unsigned long)my_comm << "\", "
+	       << " \"comm_size\": \"" << nproc << "\", "
+	       << " \"rank\": \"" << rank << "\", "
+	       << " \"workload\": \"" << workload_str << "\", "
+	       << " \"distribution\": \"" << distribution << "\", "
+	       << " \"a\": \"" << a << "\", "
+	       << " \"b\": \"" << b << "\", "
+	       << " \"stencil_size\": \"" << stencil_size << "\", "
+	       << " \"iterations\": \"" << iterations << "\", "
+	       << " \"inner_loop_itr\": \"" << innerloop_itr << "\", "
+	       << " \"iteration\": \"" << i << "\", "
+	       << " \"work_start\": \"" << times_buffer[i].start << "\", "
+	       << " \"barrier_start\": \"" << times_buffer[i].bstart << "\", "
+	       << " \"barrier_end\": \"" << times_buffer[i].bend << "\", "
+	       << " \"workload_usec\": \"" << times_buffer[i].bstart - times_buffer[i].start << "\", "
+	       << " \"workload_max_usec\": \"" << times_buffer[i].workload_max << "\", "
+	       << " \"interval_max_usec\": \"" << times_buffer[i].bend - times_buffer[i].start << "\""
+	       << " }"
+	    ;
+	  if( i + 1 < iterations ) {
+	    ostr << ",\n";
+	  } else {
+	    ostr << "\n";
+	  }
+	}
+	ostr << "]\n";
 	
 	/* Print the logged data to the local data file */
 	if( mpi_write ) {
@@ -653,19 +641,17 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 	  MPI_File_open( my_comm, outfile,
 			 MPI_MODE_WRONLY | MPI_MODE_CREATE,
 			 MPI_INFO_NULL, &mpi_f_time );
-	  MPI_File_write_shared( mpi_f_time, ostr, strlen( ostr ), MPI_CHAR, &status );
-	  MPI_Get_count( &status, MPI_INT, &count );
-	  if( count != strlen(ostr) ) {
-	    fprintf( stderr, "Error performing MPI_File_write_shared: incorrect count\n" );
+	  MPI_File_write_shared( mpi_f_time, ostr.str().c_str(), ostr.str().size(), MPI_CHAR, &status );
+	  MPI_Get_count( &status, MPI_CHAR, &count );
+	  if( count != ostr.str().size() ) {
+	    fprintf( stderr, "Error performing MPI_File_write_shared: incorrect count %d (expected %d)\n", count, ostr.str().size() );
 	  }
 	  MPI_File_close( &mpi_f_time );
 	} else {	  
 	  f_time = fopen(outfile, "w");
-	  fprintf(f_time, "%s", ostr);
+	  fprintf(f_time, "%s", ostr.str().c_str());
 	  fclose( f_time );
 	}
-	free( ostr );
-
 }
 
 static char distribution[256] = "gaussian";
