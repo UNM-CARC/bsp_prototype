@@ -592,18 +592,21 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 		  struct coll_time * times_buffer, gsl_rng *r, char *outfile)
 {
   	FILE *f_time;
+	MPI_File mpi_f_time;
 	int rank, nproc;
   	int i;
+	int mpi_write = 1;
+	char *ostr = NULL;
 
   	MPI_Comm_rank(my_comm,&rank);
   	MPI_Comm_size(my_comm,&nproc);
+	ostr = static_cast<char*> (malloc( iterations * 512 * sizeof(char) ));
+	memset( ostr, 0, iterations * 512 );
 
-	/* Print the logged data to the local data file */
-  	f_time = fopen(outfile, "w");
-	fprintf(f_time, "[\n");
+	sprintf(ostr, "[\n");
   	for (i = 0; i < iterations; i++) {
-		fprintf( f_time, "{ " );
-		fprintf( f_time, " \"uniq_id\": \"%s\", "
+		sprintf( ostr, "{ " );
+		sprintf( ostr, " \"uniq_id\": \"%s\", "
 			" \"communicator\": %lu, "
 			" \"comm_size\": %d, "
 			" \"rank\": %d, "
@@ -617,7 +620,7 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 			experimentID, (unsigned long)my_comm, nproc, rank,
 			workload_str, distribution, a, b, stencil_size,
 			iterations, innerloop_itr);
-		fprintf( f_time, 
+		sprintf( ostr, 
 		     	" \"iteration\": %d, "
 		    	" \"work_start\": %.3lf, "
 		     	" \"barrier_start\": %.3lf, "
@@ -635,13 +638,34 @@ void write_buffer(double a, double b, char * distribution, int stencil_size, int
 				times_buffer[i].bend - times_buffer[i].start );
 
 		if (i + 1 < iterations) {
-			fprintf(f_time, ",\n");
+		  sprintf(ostr, ",\n");
 		} else {
-			fprintf(f_time, "\n");
+			sprintf(ostr, "\n");
 		}
   	}
-	fprintf(f_time, "]\n");
-  	fclose(f_time);
+	sprintf(ostr, "]\n");
+
+	
+	/* Print the logged data to the local data file */
+	if( mpi_write ) {
+	  MPI_Status status;
+	  int count;
+	  MPI_File_open( my_comm, outfile,
+			 MPI_MODE_WRONLY | MPI_MODE_CREATE,
+			 MPI_INFO_NULL, &mpi_f_time );
+	  MPI_File_write_shared( mpi_f_time, ostr, strlen( ostr ), MPI_CHAR, &status );
+	  MPI_Get_count( &status, MPI_INT, &count );
+	  if( count != strlen(ostr) ) {
+	    fprintf( stderr, "Error performing MPI_File_write_shared: incorrect count\n" );
+	  }
+	  MPI_File_close( &mpi_f_time );
+	} else {	  
+	  f_time = fopen(outfile, "w");
+	  fprintf(f_time, "%s", ostr);
+	  fclose( f_time );
+	}
+	free( ostr );
+
 }
 
 static char distribution[256] = "gaussian";
