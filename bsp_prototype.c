@@ -65,6 +65,8 @@ static unsigned int makeRabbitCalls = 0;
 static char rabbitIP[18]; // this will be read from command line (-r option)
 #define RABBIT_PORT 5672 // this is rabbit broker's defualt port
 
+static volatile int WORKLOAD_VALUE = 1;
+
 
 /*
  * If distribution is:
@@ -91,7 +93,8 @@ enum bsp_workload {
 	WORKLOAD_DGEMM,
 	WORKLOAD_STREAM,
 	WORKLOAD_FBENCH,
-	WORKLOAD_IO
+	WORKLOAD_IO,
+  WORKLOAD_FWQ
 };
 enum bsp_workload workload = WORKLOAD_SLEEP;
 char *workload_str = "sleep";
@@ -413,10 +416,16 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
   	double inter_time = 0;
 	switch(w) {
+  case WORKLOAD_FWQ:
 	case WORKLOAD_SLEEP:
 		inter_time = generate_interval_rng(r, rng_type, a, b);
 		assert(inter_time >= 0.0 );
-		if (inter_time > 0){
+    if (w == WORKLOAD_FWQ) {
+      for (int i = 0; i < 1000 * inter_time; i++) {
+        WORKLOAD_VALUE += i;
+      }
+    }
+    else if (inter_time > 0){
 			sleep_rdtsc(1000  * inter_time, cpn);
 		}
 		break;
@@ -762,6 +771,7 @@ int main(int argc, char *argv[])
 		case 'w':
 			workload_str = optarg;
 			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+      else if (strcmp(optarg, "fwq") == 0) workload = WORKLOAD_FWQ;
 			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
 //			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
 //			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
