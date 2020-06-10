@@ -419,9 +419,11 @@ void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b
 /* Do one iteration of whatever comoute workload was requested */
 void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
-  	double inter_time = 0;
+  double inter_time = 0;
 	switch(w) {
   case WORKLOAD_FWQ:
+		inter_time = generate_interval_rng(r, rng_type, a, b);
+		assert(inter_time >= 0.0);
     for (int i = 0; i < 1000 * inter_time; i++) {
       WORKLOAD_VALUE += i;
     }
