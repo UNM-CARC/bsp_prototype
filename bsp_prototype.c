@@ -89,11 +89,11 @@ struct coll_time{
 };
 
 enum bsp_workload {
-	WORKLOAD_SLEEP = 0,
-	WORKLOAD_DGEMM,
-	WORKLOAD_STREAM,
-	WORKLOAD_FBENCH,
-	WORKLOAD_IO,
+  WORKLOAD_SLEEP = 0,
+  WORKLOAD_DGEMM,
+  WORKLOAD_STREAM,
+  WORKLOAD_FBENCH,
+  WORKLOAD_IO,
   WORKLOAD_FWQ
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
@@ -420,27 +420,27 @@ void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b
 void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
   double inter_time = 0;
-	switch(w) {
+  switch(w) {
   case WORKLOAD_FWQ:
-		inter_time = generate_interval_rng(r, rng_type, a, b);
-		assert(inter_time >= 0.0);
-    for (int i = 0; i < 1000 * inter_time; i++) {
+    inter_time = generate_interval_rng(r, rng_type, a, b);
+    assert(inter_time >= 0.0);
+    for (int i = 0; i < 10 * inter_time; i++) {
       WORKLOAD_VALUE += i;
     }
     break;
-	case WORKLOAD_SLEEP:
-		inter_time = generate_interval_rng(r, rng_type, a, b);
-		assert(inter_time >= 0.0 );
+  case WORKLOAD_SLEEP:
+    inter_time = generate_interval_rng(r, rng_type, a, b);
+    assert(inter_time >= 0.0 );
     if (inter_time > 0){
-			sleep_rdtsc(1000  * inter_time, cpn);
-		}
-		break;
-	case WORKLOAD_DGEMM:
-		for (int i = 0; i < DGEMM_iter; i++) {
-	       		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
-				    DGEMM_N, DGEMM_N, DGEMM_N, 1.0,
-                    	   	    (double *)DGEMM_A, DGEMM_N, (double *)DGEMM_B,
-				    DGEMM_N, 1.0, (double *)DGEMM_C, DGEMM_N);
+      sleep_rdtsc(1000  * inter_time, cpn);
+    }
+    break;
+  case WORKLOAD_DGEMM:
+    for (int i = 0; i < DGEMM_iter; i++) {
+	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 
+				          DGEMM_N, DGEMM_N, DGEMM_N, 1.0,
+                  (double *)DGEMM_A, DGEMM_N, (double *)DGEMM_B,
+				           DGEMM_N, 1.0, (double *)DGEMM_C, DGEMM_N);
 		}
 		break;
 	case WORKLOAD_IO:
