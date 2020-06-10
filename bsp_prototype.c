@@ -94,7 +94,7 @@ enum bsp_workload {
 	WORKLOAD_STREAM,
 	WORKLOAD_FBENCH,
 	WORKLOAD_IO,
-  WORKLOAD_FWQ
+    WORKLOAD_FWQ
 };
 enum bsp_workload workload = WORKLOAD_SLEEP;
 char *workload_str = "sleep";
@@ -356,7 +356,12 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 	size_t realiosize;
   	rng_type = init_rng_type(distribution);
 	switch (w) {
-	case WORKLOAD_SLEEP:
+    case WORKLOAD_FWQ:
+        if (rng_type < 0) {
+            return -1;
+        }
+        break;
+    case WORKLOAD_SLEEP:
   		if (rng_type < 0) {
 			return -1;
   		}
