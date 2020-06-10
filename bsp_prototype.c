@@ -426,6 +426,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
     assert(inter_time >= 0.0);
     for (int i = 0; i < 10 * inter_time; i++) {
       WORKLOAD_VALUE += i;
+      asm("");
     }
     break;
   case WORKLOAD_SLEEP:
