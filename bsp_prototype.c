@@ -94,10 +94,10 @@ enum bsp_workload {
 	WORKLOAD_STREAM,
 	WORKLOAD_FBENCH,
 	WORKLOAD_IO,
-    WORKLOAD_FWQ
+  WORKLOAD_FWQ
 };
-enum bsp_workload workload = WORKLOAD_SLEEP;
-char *workload_str = "sleep";
+enum bsp_workload workload = WORKLOAD_FWQ;
+char *workload_str = "fwq";
 
 // a methods to exit in case of an error!
 void err_out(const char* errMessage){
@@ -422,15 +422,14 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
   	double inter_time = 0;
 	switch(w) {
   case WORKLOAD_FWQ:
+    for (int i = 0; i < 1000 * inter_time; i++) {
+      WORKLOAD_VALUE += i;
+    }
+    break;
 	case WORKLOAD_SLEEP:
 		inter_time = generate_interval_rng(r, rng_type, a, b);
 		assert(inter_time >= 0.0 );
-    if (w == WORKLOAD_FWQ) {
-      for (int i = 0; i < 1000 * inter_time; i++) {
-        WORKLOAD_VALUE += i;
-      }
-    }
-    else if (inter_time > 0){
+    if (inter_time > 0){
 			sleep_rdtsc(1000  * inter_time, cpn);
 		}
 		break;

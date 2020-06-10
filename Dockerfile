@@ -4,7 +4,8 @@
 # set the base image used for building can control this by setting the 
 # BASE_IMAGE variable instead.
 
-ARG DOCKER_TAG=latest
+#ARG DOCKER_TAG=latest
+ARG DOCKER_TAG=fwq
 ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
 
