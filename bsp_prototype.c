@@ -66,7 +66,8 @@ static char rabbitIP[18]; // this will be read from command line (-r option)
 #define RABBIT_PORT 5672 // this is rabbit broker's defualt port
 
 static volatile int WORKLOAD_VALUE = 1;
-
+static volatile int WORKLOAD_OP_VALUE = 1;
+static volatile double FWQ_CALIBRATE = 1.0;
 
 /*
  * If distribution is:
@@ -349,6 +350,29 @@ void fill(double *p, int n)
 		p[i] = 2 * drand48() - 1;
 }
 
+void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn) {
+    double rate = 0.0;
+    for (int i = - (int)(loops / 10); i < loops; i++) {
+        WORKLOAD_OP_VALUE = 1.0;
+
+        uint64_t begin = rdtsc();
+
+        double inter_time = 0;
+        inter_time = generate_interval_rng(r, rng_type, a, b);
+        assert(inter_time >= 0.0);
+        for (int i = 0; i < inter_time; i++) {
+            WORKLOAD_OP_VALUE += i;
+            asm("");                    
+        }
+
+        uint64_t end = rdtsc();
+
+        if (i >= 0) rate += inter_time / ((double)(end - begin) / cpn / 1000.0);
+    }
+
+    FWQ_CALIBRATE = rate / (double)loops;
+    printf("FWQ Calibrate: %.4f\n", FWQ_CALIBRATE);
+}
 
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
@@ -424,7 +448,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
   case WORKLOAD_FWQ:
     inter_time = generate_interval_rng(r, rng_type, a, b);
     assert(inter_time >= 0.0);
-    for (int i = 0; i < 10 * inter_time; i++) {
+    for (int i = 0; i < FWQ_CALIBRATE * inter_time; i++) {
       WORKLOAD_VALUE += i;
       asm("");
     }
@@ -492,7 +516,14 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		fprintf(stderr, "ERROR: could not initialize the workload!");
 		return -1;
 	}
-	//initializing the rabbit message
+
+    // Do we need to calibrate FWQ workload?
+    if (workload == WORKLOAD_FWQ) {
+        int loops = iterations;
+        calibrate_fwq(std::max(loops, 1000), workload, r, a, b, cpn);
+    }
+
+    //initializing the rabbit message
 	if(makeRabbitCalls){
 		rabbit_message = (char*) myAlloc(RABBIT_MESSAGE_SIZE);
 		int i;
@@ -840,7 +871,7 @@ int main(int argc, char *argv[])
 		stencil_size = 0;
 	}
 
-  	ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
+    ret = barrier_loop(a, b, distribution, stencil_size, innerloop_itr, iterations, 
 			times_buffer, cpn, r, conn);
 	//closing the connection ro rabbit broker
 	if(makeRabbitCalls){
