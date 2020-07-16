@@ -48,6 +48,12 @@
 
 //the header for amq send and util functions
 #include "amqp_producer.h"
+
+//Header function for HPCG function calls
+#include "hpcg_runner.h"
+#include "SparseMatrix.hpp"
+#include "Vector.hpp"
+
 //Stencil Radius
 #define RADIUS 1
 #define SECOND_TO_MICRO_FACTOR 1000000
@@ -95,7 +101,8 @@ enum bsp_workload {
   WORKLOAD_STREAM,
   WORKLOAD_FBENCH,
   WORKLOAD_IO,
-  WORKLOAD_FWQ
+  WORKLOAD_FWQ,
+  WORKLOAD_HPCG
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
 char *workload_str = "fwq";
@@ -335,6 +342,11 @@ enum rng_type rng_type = RNG_ERROR;
 double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
+SparseMatrix HPCG_A;
+Vector HPCG_b, HPCG_x, HPCG_xexact;
+Vector HPCG_xoverlap, HPCG_bcomputed;
+int HPCG_iter;
+
 struct io_params_s {
   size_t io_size = 1;
   FILE *handle;
@@ -380,6 +392,11 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 	size_t realiosize;
   	rng_type = init_rng_type(distribution);
 	switch (w) {
+    case WORKLOAD_HPCG:
+        printf("HPCG Initializing\n");
+        setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact, HPCG_xoverlap, HPCG_bcomputed);
+        HPCG_iter = b;
+        break;
     case WORKLOAD_FWQ:
         if (rng_type < 0) {
             return -1;
@@ -445,6 +462,12 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
   double inter_time = 0;
   switch(w) {
+  case WORKLOAD_HPCG:
+    printf("HPCG Running\n");
+    for ( int i = 0; i < HPCG_iter; i++ ) {
+        runHPCG(HPCG_A, HPCG_xoverlap, HPCG_bcomputed);
+    }
+    break;
   case WORKLOAD_FWQ:
     inter_time = generate_interval_rng(r, rng_type, a, b);
     assert(inter_time >= 0.0);
@@ -809,7 +832,8 @@ int main(int argc, char *argv[])
 		case 'w':
 			workload_str = optarg;
 			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
-      else if (strcmp(optarg, "fwq") == 0) workload = WORKLOAD_FWQ;
+            else if (strcmp(optarg, "hpcg") == 0) workload = WORKLOAD_HPCG;
+            else if (strcmp(optarg, "fwq") == 0) workload = WORKLOAD_FWQ;
 			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
 //			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
 //			else if (strcmp(optarg, "fbench") == 0) workload = WORKLOAD_FBENCH;
