@@ -393,7 +393,7 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
   	rng_type = init_rng_type(distribution);
 	switch (w) {
     case WORKLOAD_HPCG:
-        printf("HPCG Initializing\n");
+        // printf("HPCG Initializing\n");
         setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact, HPCG_xoverlap, HPCG_bcomputed);
         HPCG_iter = b;
         break;
@@ -463,7 +463,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
   double inter_time = 0;
   switch(w) {
   case WORKLOAD_HPCG:
-    printf("HPCG Running\n");
+    // printf("HPCG Running\n");
     for ( int i = 0; i < HPCG_iter; i++ ) {
         runHPCG(HPCG_A, HPCG_xoverlap, HPCG_bcomputed);
     }
