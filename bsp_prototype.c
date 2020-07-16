@@ -471,7 +471,7 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
   case WORKLOAD_FWQ:
     inter_time = generate_interval_rng(r, rng_type, a, b);
     assert(inter_time >= 0.0);
-    for (int i = 0; i < (int)((int)FWQ_CALIBRATE * (int)inter_time); i++) {
+    for (long long int i = 0; i < (long long int)((long long int)FWQ_CALIBRATE * (long long int)inter_time); i++) {
       WORKLOAD_VALUE += i;
       asm("");
     }
