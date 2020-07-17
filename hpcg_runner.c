@@ -25,7 +25,7 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
     Geometry * geom = new Geometry;
     GenerateGeometry(size, rank, numThreads, pz, zl, zu, nx, ny, nz, npx, npy, npz, geom);
     
-    // printf("Size: %d\tRank: %d\tNum Threads: %d\tpz: %d\tzl: %d\tzu: %d\tnx: %d\tny: %d\tnz: %d\tnpx: %d\tnpy: %d\tnpz: %d\n", size, rank, numThreads, pz, zl, zu, nx, ny, nz, npx, npy, npz);
+    printf("Size: %d\tRank: %d\tNum Threads: %d\tpz: %d\tzl: %d\tzu: %d\tnx: %d\tny: %d\tnz: %d\tnpx: %d\tnpy: %d\tnpz: %d\n", size, rank, numThreads, pz, zl, zu, nx, ny, nz, npx, npy, npz);
 
     int ierr = CheckAspectRatio(0.125, geom->npx, geom->npy, geom->npz, "process grid", rank==0);
     if (ierr)
@@ -33,7 +33,7 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
 
     InitializeSparseMatrix(A, geom);
 
-    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
     GenerateProblem(A, &b, &x, &xexact);
     SetupHalo(A);
@@ -44,7 +44,7 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
     local_int_t nrow = A.localNumberOfRows;
     local_int_t ncol = A.localNumberOfColumns;
 
-    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", nrow, ncol, A.totalNumberOfNonzeros);
+    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", nrow, ncol, A.totalNumberOfNonzeros);
 
     InitializeVector(x_overlap, ncol);
     InitializeVector(b_computed, nrow);
@@ -53,8 +53,8 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
 }
 
 void runHPCG(SparseMatrix & A, Vector & x_overlap, Vector & b_computed) {
-    // printf("Running HPCG\n");
-    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+    printf("Running HPCG\n");
+    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
     int ierr = ComputeSPMV_ref(A, x_overlap, b_computed); // b_computed = A*x_overlap
 

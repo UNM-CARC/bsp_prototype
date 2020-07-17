@@ -1,4 +1,4 @@
-HPCG_INSTALL = /users/jereddt/Research/UNM/CDSE/bsp_prototype
+HPCG_INSTALL = /users/soheilaj/bsp_prototype
 RABBIT_INSTALL = /users/sahba/wheeler-scratch/git/rabbitmq-c
 
 HPCG_LIB_LOC = ${HPCG_INSTALL}/lib
