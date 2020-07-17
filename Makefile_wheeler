@@ -3,27 +3,38 @@ RABBIT_INSTALL = /users/sahba/wheeler-scratch/git/rabbitmq-c
 RABBIT_LIB_LOC = ${RABBIT_INSTALL}/build/librabbitmq
 RABBIT_INC_LOC = ${RABBIT_INSTALL}/librabbitmq
 
+HPCG_INC_LOC = /users/soheilaj/test_hpcg/include
+HPCG_LIB_LOC = /users/soheilaj/test_hpcg/lib
+
+
 SHELL := /bin/bash
 CC     = mpic++
 CFLAGS = -Wall -I /users/sahba/wheeler-scratch/git/sprng5/include
-LDFLAGS = -L/users/sahba/wheeler-scratch/git/sprng5/lib
-LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -lrabbitmq
+LDFLAGS = -L/users/sahba/wheeler-scratch/git/sprng5/lib 
+LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -lrabbitmq -lhpcg
+	 
+
 
 .PHONY: clean
 	.PHONY: default
 
 default: bsp_prototype
 
+hpcg_runner.o: hpcg_runner.h hpcg_runner.c
+	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
+	$(CC) -Wall -I $(HPCG_INC_LOC) -c hpcg_runner.c
+	
+
 amqp_producer.o: amqp_producer.h amqp_producer.c
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
 	$(CC) -Wall -I $(RABBIT_INC_LOC) -c amqp_producer.c
 
-bsp_prototype: bsp_prototype.c amqp_producer.o
+bsp_prototype: bsp_prototype.c hpcg_runner.o amqp_producer.o
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
-	$(CC) $^ -o bsp-prototype $(CFLAGS) -I $(RABBIT_INC_LOC) -L$(RABBIT_LIB_LOC) $(LDFLAGS) $(LDLIBS)
-
+	$(CC) $^ -o bsp-prototype $(CFLAGS) -I $(HPCG_INC_LOC) -I $(RABBIT_INC_LOC) -L$(HPCG_LIB_LOC) -L$(RABBIT_LIB_LOC) $(LDFLAGS) $(LDLIBS)
+	
 
 clean:
-		rm -f ampq_producer.o bsp_prototype
+		rm -f hpcg_runner.o ampq_producer.o bsp_prototype 

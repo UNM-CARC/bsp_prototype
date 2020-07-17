@@ -48,6 +48,8 @@
 
 //the header for amq send and util functions
 #include "amqp_producer.h"
+#include "hpcg_runner.h"
+
 //Stencil Radius
 #define RADIUS 1
 #define SECOND_TO_MICRO_FACTOR 1000000
@@ -95,7 +97,8 @@ enum bsp_workload {
   WORKLOAD_STREAM,
   WORKLOAD_FBENCH,
   WORKLOAD_IO,
-  WORKLOAD_FWQ
+  WORKLOAD_FWQ,
+  WORKLOAD_HPCG
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
 char *workload_str = "fwq";
@@ -400,6 +403,11 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 		fill(DGEMM_A, DGEMM_N * DGEMM_N);
 		fill(DGEMM_B, DGEMM_N * DGEMM_N);
 		fill(DGEMM_C, DGEMM_N * DGEMM_N);
+		break;
+	case WORKLOAD_HPCG:
+		Geometry * geom = new Geometry;
+	        HPCG_iter = b;
+		GenerateGeometry(nprocs,rank,1,0,0,0,a,a,a,0,0,0,geom;
 		break;
 	case WORKLOAD_IO:
 	  realiosize = io_params.io_size * 1024;
@@ -830,7 +838,9 @@ int main(int argc, char *argv[])
 			exit(-1);
 			break;
 			}
-	} 
+	}
+	
+	setupHpcg(); 
 
 	/* We should have one argument left - the filename. */
   	if (optind + 1 != argc) {
