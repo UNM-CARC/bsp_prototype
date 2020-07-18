@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <iostream>
 
-void setupHPCG( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, Vector & x_overlap, Vector & b_computed );
-void runHPCG( SparseMatrix & A, Vector & x_overlap, Vector & b_computed );
+void setupHPCG( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact );
+void runHPCG( SparseMatrix & A, Vector & x, Vector & b );
 
 #endif
