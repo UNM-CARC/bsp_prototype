@@ -51,8 +51,6 @@
 
 //Header function for HPCG function calls
 #include "hpcg_runner.h"
-#include "SparseMatrix.hpp"
-#include "Vector.hpp"
 
 //Stencil Radius
 #define RADIUS 1
