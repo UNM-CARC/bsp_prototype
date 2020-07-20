@@ -1,6 +1,6 @@
 #include "hpcg_runner.h"
 
-void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, Vector & x_overlap, Vector & b_computed) {
+void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact) {
     // printf("Setting up HPCG\n");
     // printf("The value of a is: %.4f\n", a);
 
@@ -27,10 +27,6 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
     
     printf("Size: %d\tRank: %d\tNum Threads: %d\tpz: %d\tzl: %d\tzu: %d\tnx: %d\tny: %d\tnz: %d\tnpx: %d\tnpy: %d\tnpz: %d\n", size, rank, numThreads, pz, zl, zu, nx, ny, nz, npx, npy, npz);
 
-    int ierr = CheckAspectRatio(0.125, geom->npx, geom->npy, geom->npz, "process grid", rank==0);
-    if (ierr)
-        printf("%d\n", ierr);
-
     InitializeSparseMatrix(A, geom);
 
     printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
@@ -38,25 +34,16 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
     GenerateProblem(A, &b, &x, &xexact);
     SetupHalo(A);
 
-    CGData data;
-    InitializeSparseCGData(A, data);
+    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
-    local_int_t nrow = A.localNumberOfRows;
-    local_int_t ncol = A.localNumberOfColumns;
-
-    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", nrow, ncol, A.totalNumberOfNonzeros);
-
-    InitializeVector(x_overlap, ncol);
-    InitializeVector(b_computed, nrow);
-
-    FillRandomVector(x_overlap);
+    FillRandomVector(x);
 }
 
-void runHPCG(SparseMatrix & A, Vector & x_overlap, Vector & b_computed) {
-    printf("Running HPCG\n");
-    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+void runHPCG(SparseMatrix & A, Vector & x, Vector & b) {
+    // printf("Running HPCG\n");
+    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
-    int ierr = ComputeSPMV_ref(A, x_overlap, b_computed); // b_computed = A*x_overlap
+    int ierr = ComputeSPMV_ref(A, x, b); // b = A*x
 
     if (ierr) printf("Error in call to SpMV: %d\n", ierr);
 }
