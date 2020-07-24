@@ -103,7 +103,7 @@ enum bsp_workload {
   WORKLOAD_HPCG
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
-char *workload_str = "fwq";
+const char *workload_str = "fwq";
 
 // a methods to exit in case of an error!
 void err_out(const char* errMessage){
@@ -347,10 +347,10 @@ int HPCG_iter;
 struct io_params_s {
   size_t io_size = 1;
   FILE *handle;
-  char *fname;
-  char *pname;
+  const char *fname;
+  const char *pname;
   char *ary;
-  char *slash;
+  const char *slash;
 } io_params;
 
 void fill(double *p, int n)
@@ -584,15 +584,15 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 				MPI_Isend(values + stencil_size, stencil_size, MPI_DOUBLE, up_rank, 823, my_comm, &requests[5]);
 				MPI_Isend(values + 2*stencil_size, stencil_size, MPI_DOUBLE, left_rank, 919, my_comm, &requests[6]);
 				MPI_Isend(values + 3*stencil_size, stencil_size, MPI_DOUBLE, right_rank, 977, my_comm, &requests[7]);
-				// with uniform probability send rabbit mesages
-				if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
-					sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, VERBOSE_RABBIT_SEND);
-				}
-				MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
-				// in case we do not have stencil but we still wanna do rabbit!
-				}else if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
+			}
+			// with uniform probability send rabbit mesages
+			// in case we do not have stencil but we still wanna do rabbit!
+			if(makeRabbitCalls && gsl_rng_uniform(r) < RABBIT_PROB){
 				//the '1' means produce verbose output
 				sendBatch(conn, "test", RABBIT_MESSAGE_COUNT, RABBIT_MESSAGE_SIZE, rabbit_message, VERBOSE_RABBIT_SEND);
+			}
+			if (stencil_size) { 
+			      MPI_Waitall(8, requests, MPI_STATUSES_IGNORE);
 			}
 		}//end of inner loop
 
