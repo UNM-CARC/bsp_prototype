@@ -4,7 +4,7 @@ void setupProblem(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & x
 
     int size, rank; 
     int numThreads = 1, pz = 0, zl = 0, zu = 0, npx = 0, npy = 0, npz = 0;
-  
+
     if (distributed) {
         MPI_Comm_size(MPI_COMM_WORLD, & size);   
         MPI_Comm_rank(MPI_COMM_WORLD, & rank);   
@@ -22,7 +22,7 @@ void setupProblem(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & x
     // Construct the geometry and linear system
     Geometry * geom = new Geometry;
     GenerateGeometry(size, rank, numThreads, pz, zl, zu, nx, ny, nz, npx, npy, npz, geom);
-    
+
     printf("Size: %d\tRank: %d\tNum Threads: %d\tpz: %d\tzl: %d\tzu: %d\tnx: %d\tny: %d\tnz: %d\tnpx: %d\tnpy: %d\tnpz: %d\n", size, rank, numThreads, pz, zl, zu, geom->nx, geom->ny, geom->nz, geom->npx, geom->npy, geom->npz);
 
     InitializeSparseMatrix(A, geom);
