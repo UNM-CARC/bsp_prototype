@@ -27,7 +27,7 @@ void setupProblem(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & x
 
     InitializeSparseMatrix(A, geom);
 
-    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
     GenerateProblem(A, &b, &x, &xexact);
     SetupHalo(A);
@@ -48,7 +48,7 @@ void setupSPMV(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
 
 void runSPMV(SparseMatrix & A, Vector & x, Vector & b) {
     // printf("Running SPMV\n");
-    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
     int ierr = ComputeSPMV_ref(A, x, b); // b = A*x
 
@@ -64,14 +64,14 @@ void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexa
     InitializeSparseCGData(A, data);
 }
 
-void runHPCG(SparseMatrix & A, Vector & x, Vector & b, double Maxiter, CGData & data){
+void runHPCG(SparseMatrix & A, Vector & x, Vector & b, CGData & data, int max_iter){
     // printf("Running HPCG\n");
-    printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
+    // printf("Number of Rows: %d\tNumber of Columns: %d\tTotal Number of Non-Zeros: %lld\n", A.localNumberOfRows, A.localNumberOfColumns, A.totalNumberOfNonzeros);
 
     std::vector<double> opt_times(9,0.0);
 
     int niter = 0;
     double tolerance = 0.0, normr = 0.0, normr0 = 0.0;
     bool doPreconditioning = true;
-    CG_ref(A, data, b ,x , Maxiter, tolerance, niter, normr, normr0, & opt_times[0], doPreconditioning); 
+    CG_ref(A, data, b, x, max_iter, tolerance, niter, normr, normr0, & opt_times[0], doPreconditioning); 
 }

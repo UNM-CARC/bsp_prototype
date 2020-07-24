@@ -38,6 +38,6 @@ void setupSPMV( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xex
 void runSPMV( SparseMatrix & A, Vector & x, Vector & b );
 
 void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, CGData & data);
-void runHPCG(SparseMatrix & A, Vector & x, Vector & b, double Maxiter, CGData & data);
+void runHPCG(SparseMatrix & A, Vector & x, Vector & b, CGData & data, int max_iter);
 
 #endif
