@@ -191,15 +191,15 @@ enum rng_type {
 
 enum rng_type init_rng_type(char *distribution)
 {
-    	if (strcmp(distribution,"gaussian") == 0){
+    if (strcmp(distribution,"gaussian") == 0){
 		return RNG_GAUSSIAN;
-    	} else if (strcmp(distribution,"exponential") == 0){
+    } else if (strcmp(distribution,"exponential") == 0){
 		return RNG_EXPONENTIAL;
-    	} else if (strcmp(distribution,"flat") == 0){
+    } else if (strcmp(distribution,"flat") == 0){
 		return RNG_FLAT;
-    	} else if (strcmp(distribution,"pareto") == 0){
+    } else if (strcmp(distribution,"pareto") == 0){
 		return RNG_PARETO;
-    	} else if (strcmp(distribution, "constant") == 0)
+    } else if (strcmp(distribution, "constant") == 0)
 		return RNG_CONSTANT;
 	else return RNG_GAUSSIAN;
 }
@@ -342,8 +342,8 @@ double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
 SparseMatrix HPCG_A;
-Vector HPCG_b, HPCG_x, HPCG_xexact, HPCG_x_org;
-CGData HPCG_data, HPCG_data_org;
+Vector HPCG_b, HPCG_x, HPCG_xexact, HPCG_xorig;
+CGData HPCG_data, HPCG_data_orig;
 int HPCG_iter;
 
 struct io_params_s {
@@ -361,7 +361,8 @@ void fill(double *p, int n)
 		p[i] = 2 * drand48() - 1;
 }
 
-void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn) {
+void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn) 
+{
     double rate = 0.0;
     for (int i = - (int)(loops / 10); i < loops; i++) {
         WORKLOAD_OP_VALUE = 1.0;
@@ -384,13 +385,14 @@ void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn)
     FWQ_CALIBRATE = rate / (double)loops;
     printf("FWQ Calibrate: %.4f\n", FWQ_CALIBRATE);
 }
+
 void reset_workload()
 {
-	HPCG_x = HPCG_x_org;
-	HPCG_data = HPCG_data_org;
-        //memcpy(HPCG_x, HPCG_x_org, sizeof(* HPCG_x));
-	printf("reset_workload\n");
+	HPCG_x = HPCG_xorig;
+	HPCG_data = HPCG_data_orig;
+	// printf("reset_workload\n");
 }
+
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
@@ -399,9 +401,8 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 	switch (w) {
     case WORKLOAD_HPCG:
 	setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact, HPCG_data);
-        HPCG_x_org = HPCG_x;
-	HPCG_data_org = HPCG_data;
-        //memcpy(HPCG_x_org, HPCG_x, sizeof(* HPCG_x_org));
+        HPCG_xorig = HPCG_x;
+	    HPCG_data_orig = HPCG_data; 
         HPCG_iter = b;
 	break;
     case WORKLOAD_SPMV:
