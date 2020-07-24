@@ -26,11 +26,15 @@
 #include "TestCG.hpp"
 #include "TestSymmetry.hpp"
 #include "TestNorms.hpp"
-
+#include <vector>
 #include <stdio.h>
 #include <iostream>
+#include <mpi.h>
+void setupSPMV( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact );
+void runSPMV( SparseMatrix & A, Vector & x, Vector & b );
+void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, CGData & data);
+void runHPCG(SparseMatrix & A, Vector & x, Vector & b, double Maxiter, CGData & data);
 
-void setupHPCG( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact );
-void runHPCG( SparseMatrix & A, Vector & x, Vector & b );
+ 
 
 #endif

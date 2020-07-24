@@ -100,6 +100,7 @@ enum bsp_workload {
   WORKLOAD_FBENCH,
   WORKLOAD_IO,
   WORKLOAD_FWQ,
+  WORKLOAD_SPMV,
   WORKLOAD_HPCG
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
@@ -341,7 +342,8 @@ double *DGEMM_A, *DGEMM_B, *DGEMM_C;
 int DGEMM_N, DGEMM_iter;
 
 SparseMatrix HPCG_A;
-Vector HPCG_b, HPCG_x, HPCG_xexact;
+Vector HPCG_b, HPCG_x, HPCG_xexact, HPCG_x_org;
+CGData HPCG_data, HPCG_data_org;
 int HPCG_iter;
 
 struct io_params_s {
@@ -382,7 +384,13 @@ void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn)
     FWQ_CALIBRATE = rate / (double)loops;
     printf("FWQ Calibrate: %.4f\n", FWQ_CALIBRATE);
 }
-
+void reset_workload()
+{
+	HPCG_x = HPCG_x_org;
+	HPCG_data = HPCG_data_org;
+        //memcpy(HPCG_x, HPCG_x_org, sizeof(* HPCG_x));
+	printf("reset_workload\n");
+}
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 {
 	double *buf;
@@ -390,7 +398,14 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
   	rng_type = init_rng_type(distribution);
 	switch (w) {
     case WORKLOAD_HPCG:
-        setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact);
+	setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact, HPCG_data);
+        HPCG_x_org = HPCG_x;
+	HPCG_data_org = HPCG_data;
+        //memcpy(HPCG_x_org, HPCG_x, sizeof(* HPCG_x_org));
+        HPCG_iter = b;
+	break;
+    case WORKLOAD_SPMV:
+        setupSPMV(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact);
         HPCG_iter = b;
         break;
     case WORKLOAD_FWQ:
@@ -434,8 +449,8 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 	       hurt on any POSIX-flavored filesystem  */
 	    io_params.slash = "/";
 	  }
-	  break;
-	default:
+         break;
+	 default:
 		assert(0 && "Unknown workload!");
 	}
 	return 0;
@@ -459,8 +474,11 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
   double inter_time = 0;
   switch(w) {
   case WORKLOAD_HPCG:
+    runHPCG(HPCG_A, HPCG_x, HPCG_b, HPCG_iter, HPCG_data);
+    break;
+  case WORKLOAD_SPMV:
     for ( int i = 0; i < HPCG_iter; i++ ) {
-        runHPCG(HPCG_A, HPCG_x, HPCG_b);
+        runSPMV(HPCG_A, HPCG_x, HPCG_b);
     }
     break;
   case WORKLOAD_FWQ:
@@ -599,7 +617,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 		coll_bstart = MPI_Wtime();
 		MPI_Barrier(MPI_COMM_WORLD);
 		coll_bend = MPI_Wtime();
-	
+		
 		coll_start =     ( coll_start - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 		coll_bstart =     ( coll_bstart - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
 		coll_bend   =     ( coll_bend   - rank_start_time ) * SECOND_TO_MICRO_FACTOR;
@@ -610,6 +628,10 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
 			times_buffer[ i ].start = coll_start;
 			times_buffer[ i ].bstart = coll_bstart;
 			times_buffer[ i ].bend =  coll_bend;
+		}
+
+		if (workload==WORKLOAD_HPCG){ 
+                       reset_workload();
 		}
 	}// end of main loop
 	//freeing the bufferes used for MPI exchange operations
@@ -828,6 +850,7 @@ int main(int argc, char *argv[])
 			workload_str = optarg;
 			if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
             else if (strcmp(optarg, "hpcg") == 0) workload = WORKLOAD_HPCG;
+            else if (strcmp(optarg, "spmv") == 0) workload = WORKLOAD_SPMV;
             else if (strcmp(optarg, "fwq") == 0) workload = WORKLOAD_FWQ;
 			else if (strcmp(optarg, "dgemm") == 0) workload = WORKLOAD_DGEMM;
 //			else if (strcmp(optarg, "stream") == 0) workload = WORKLOAD_STREAM;
