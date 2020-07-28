@@ -4,8 +4,9 @@
 # set the base image used for building can control this by setting the 
 # BASE_IMAGE variable instead.
 
-ARG DOCKER_TAG=carc-wheeler
-ARG BASE_IMAGE=qwofford/docker_ldms:${DOCKER_TAG}
+#ARG DOCKER_TAG=latest
+ARG DOCKER_TAG=hpcg
+ARG BASE_IMAGE=unmcarc/docker_base:${DOCKER_TAG}
 FROM ${BASE_IMAGE}
 # Because we use spack and a cleaned environment, the run commands here
 # need to be login shells to get the appropriate spack initialiation.
@@ -25,15 +26,9 @@ COPY sprng.py /opt/spack/var/spack/repos/builtin/packages/sprng/package.py
 
 # Add the new packages we want to the environment and regenerate its
 # view in /usr/local
-RUN spack add sprng gsl \
-    && spack concretize \
-    && spack install \
-    && spack env view regenerate \
-    && spack clean -a
-
-# Copy bsp prototype files
-COPY Makefile bsp_prototype.c gsl-sprng.h /home/docker/
-RUN spack add sprng gsl openblas osu-micro-benchmarks \
+WORKDIR /home/docker
+COPY Makefile bsp_prototype.c gsl-sprng.h commands.sh amqp_producer.[c,h] rabit_functions.py /home/docker/
+RUN spack add sprng gsl openblas osu-micro-benchmarks\
     && spack concretize \
     && spack install \
     && spack env view regenerate \
@@ -43,16 +38,11 @@ RUN spack add sprng gsl openblas osu-micro-benchmarks \
 RUN yum install -y python3 python-pandas
 RUN pip3 install pandasql
 
-# Copy workload execution script
-COPY commands.sh /home/docker/commands.sh
+#--user did not work for pip install!
+
+RUN yum install -y rabbitmq-server.noarch librabbitmq-devel python3\
+    && pip3 install pika --upgrade\ 
+    && echo "[{rabbit, [{loopback_users, []}]}]." > /etc/rabbitmq/rabbitmq.config
 RUN make bsp_prototype
-
-# Copy environment scripts
-COPY entrypoint.sh /home/docker
-
-# Copy ompi launch script
-COPY ompi_launch.sh /home/docker
-
-
 RUN ["chmod", "+x", "/home/docker/commands.sh"]
 CMD ["/home/docker/commands.sh"] 
