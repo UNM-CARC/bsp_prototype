@@ -370,8 +370,8 @@ void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn)
         double inter_time = 0;
         inter_time = generate_interval_rng(r, rng_type, a, b);
         assert(inter_time >= 0.0);
-        for (int i = 0; i < inter_time; i++) {
-            WORKLOAD_OP_VALUE += i;
+        for (int j = 0; j < inter_time; j++) {
+            WORKLOAD_OP_VALUE += j;
             asm("");                    
         }
 
