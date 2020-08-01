@@ -4,8 +4,8 @@ set -x
 module load gsl-2.5-gcc-7.3.0-i7icadp
 module load openmpi-3.1.3-gcc-7.3.0-6javta3
 
-rm -rf include
-rm -rf lib
+git clone https://github.com/JDTruj2018/HPCG_CDSE.git
+mv HPCG_CDSE hpcg
 
 cd hpcg
 rm -rf build
@@ -22,6 +22,10 @@ cd ../..
 
 mkdir -p lib
 mkdir -p include
+mkdir -p include/hpcg
 
 mv hpcg/build/libhpcg.a lib/libhpcg.a
-cp hpcg/src/*.hpp include
+cp hpcg/src/*.hpp include/hpcg
+
+mkdir -p lib
+mv hpcg lib

@@ -55,6 +55,11 @@ void runSPMV(SparseMatrix & A, Vector & x, Vector & b) {
     if (ierr) printf("Error in call to SpMV: %d\n", ierr);
 }
 
+void resetSPMV(Vector & x, Vector & b) {
+    FillRandomVector(x);
+    FillRandomVector(b);
+}
+
 void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, CGData & data){
     // printf("Setting up HPCG\n");
     // printf("The value of a is: %.4f\n", a);
@@ -74,4 +79,9 @@ void runHPCG(SparseMatrix & A, Vector & x, Vector & b, CGData & data, int max_it
     double tolerance = 0.0, normr = 0.0, normr0 = 0.0;
     bool doPreconditioning = true;
     CG_ref(A, data, b, x, max_iter, tolerance, niter, normr, normr0, & opt_times[0], doPreconditioning); 
+}
+
+void resetHPCG(Vector & x, Vector & xorig, CGData & data, CGData & data_orig) {
+    x = xorig;
+    data = data_orig;
 }

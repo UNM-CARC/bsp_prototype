@@ -51,6 +51,9 @@
 //Header function for HPCG function calls
 #include "hpcg_runner.h"
 
+// Header function for LAMMPS function calls
+#include "lammps_runner.h"
+
 //Stencil Radius
 #define RADIUS 1
 #define SECOND_TO_MICRO_FACTOR 1000000
@@ -100,7 +103,8 @@ enum bsp_workload {
     WORKLOAD_IO,
     WORKLOAD_FWQ,
     WORKLOAD_SPMV,
-    WORKLOAD_HPCG
+    WORKLOAD_HPCG,
+    WORKLOAD_LAMMPS
 };
 enum bsp_workload workload = WORKLOAD_FWQ;
 const char *workload_str = "fwq";
@@ -344,6 +348,8 @@ Vector HPCG_b, HPCG_x, HPCG_xexact, HPCG_xorig;
 CGData HPCG_data, HPCG_data_orig;
 int HPCG_iter;
 
+LAMMPS *lammps;
+
 struct io_params_s {
     size_t io_size = 1;
     FILE *handle;
@@ -384,10 +390,23 @@ void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn)
     printf("FWQ Calibrate: %.4f\n", FWQ_CALIBRATE);
 }
 
-void reset_workload()
+void reset_workload(int w)
 {
-    HPCG_x = HPCG_xorig;
-    HPCG_data = HPCG_data_orig;
+    switch(w) {
+        case WORKLOAD_LAMMPS:
+            lammps = resetLAMMPS(lammps);
+            break;
+        case WORKLOAD_HPCG:
+            resetHPCG(HPCG_x, HPCG_xorig, HPCG_data, HPCG_data_orig);
+            HPCG_x = HPCG_xorig;
+            HPCG_data = HPCG_data_orig;
+            break;
+        case WORKLOAD_SPMV:
+            resetSPMV(HPCG_x, HPCG_b);
+            break;
+        default:
+            break;
+    }
 }
 
 int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
@@ -396,6 +415,9 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
     size_t realiosize;
     rng_type = init_rng_type(distribution);
     switch (w) {
+        case WORKLOAD_LAMMPS:
+            lammps = setupLAMMPS(a, b);
+            break;
         case WORKLOAD_HPCG:
             setupHPCG(a, HPCG_A, HPCG_b, HPCG_x, HPCG_xexact, HPCG_data);
             HPCG_xorig = HPCG_x;
@@ -457,6 +479,9 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
 void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b )
 {
     switch(w) {
+        case WORKLOAD_LAMMPS:
+            delete lammps;
+            break;
         case WORKLOAD_IO:
             free( io_params.ary );
             break;
@@ -471,6 +496,9 @@ void run_workload(int w, gsl_rng *r, double a, double b, double cpn)
 {
     double inter_time = 0;
     switch(w) {
+        case WORKLOAD_LAMMPS:
+            runLAMMPS(lammps);
+            break;
         case WORKLOAD_HPCG:
             runHPCG(HPCG_A, HPCG_x, HPCG_b, HPCG_data, HPCG_iter);
             break;
@@ -629,9 +657,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
             times_buffer[ i ].bend =  coll_bend;
         }
 
-        if (workload==WORKLOAD_HPCG) {
-            reset_workload();
-        }
+        reset_workload(workload);
     }// end of main loop
     //freeing the bufferes used for MPI exchange operations
     if(stencil_size){
@@ -848,6 +874,7 @@ int main(int argc, char *argv[])
             case 'w':
                 workload_str = optarg;
                 if (strcmp(optarg, "sleep") == 0) workload = WORKLOAD_SLEEP;
+                else if (strcmp(optarg, "lammps") == 0) workload = WORKLOAD_LAMMPS;
                 else if (strcmp(optarg, "hpcg") == 0) workload = WORKLOAD_HPCG;
                 else if (strcmp(optarg, "spmv") == 0) workload = WORKLOAD_SPMV;
                 else if (strcmp(optarg, "fwq") == 0) workload = WORKLOAD_FWQ;

@@ -36,8 +36,10 @@ void setupProblem(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & x
 
 void setupSPMV( double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact );
 void runSPMV( SparseMatrix & A, Vector & x, Vector & b );
+void resetSPMV( Vector & x, Vector & b );
 
 void setupHPCG(double a, SparseMatrix & A, Vector & b, Vector & x, Vector & xexact, CGData & data);
 void runHPCG(SparseMatrix & A, Vector & x, Vector & b, CGData & data, int max_iter);
+void resetHPCG( Vector & x, Vector & xorig, CGData & data, CGData & data_orig );
 
 #endif
