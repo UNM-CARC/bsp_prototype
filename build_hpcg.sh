@@ -3,6 +3,7 @@ set -x
 
 module load gsl-2.5-gcc-7.3.0-i7icadp
 module load openmpi-3.1.3-gcc-7.3.0-6javta3
+module load gcc-7.3.0-gcc-7.2.0-rg5awu4
 
 git clone https://github.com/JDTruj2018/HPCG_CDSE.git
 mv HPCG_CDSE hpcg

@@ -27,7 +27,7 @@ mkdir -p include/lammps/styles
 mv lammps/build/liblammps.a lib/liblammps.a
 mv lammps/build/liblammps_mpi_stubs.a lib/liblammps_mpi_stubs.a
 
-cp lammps/src/*.h include/lammps
+cp lammps/src/* include/lammps
 cp lammps/build/styles/* include/lammps/styles
 
 mv lammps lib

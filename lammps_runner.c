@@ -13,49 +13,56 @@ LAMMPS * initLAMMPS() {
 }
 
 LAMMPS * setupLAMMPS(double a, double b) {
-    printf("Setting Up Lammps\n\n");
-    printf("a: %.4f\tb: %.4f\n", a, b);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    
-    int lattices_dim = (int)ceil(cbrt(a / 4));
+    if (rank == 0) {
+        printf("Setting Up Lammps\n\n");
+        printf("a: %.4f\tb: %.4f\n", a, b);
 
-    FILE *fsetup;
 
-    fsetup = fopen("lj_setup.txt", "w");
-    fprintf(fsetup, "variable\tx index 1\n");
-    fprintf(fsetup, "variable\ty index 1\n");
-    fprintf(fsetup, "variable\tz index 1\n");
-    fprintf(fsetup, "variable\txx equal %d*$x\n", lattices_dim);
-    fprintf(fsetup, "variable\tyy equal %d*$y\n", lattices_dim);
-    fprintf(fsetup, "variable\tzz equal %d*$z\n", lattices_dim);
+        int lattices_dim = (int)ceil(cbrt(a / 4));
 
-    fprintf(fsetup, "units\tlj\n");
-    fprintf(fsetup, "atom_style\tatomic\n");
+        FILE *fsetup;
 
-    fprintf(fsetup, "lattice\tfcc 0.8442\n");
-    fprintf(fsetup, "region\tbox block 0 ${xx} 0 ${yy} 0 ${zz}\n");
-    fprintf(fsetup, "create_box\t1 box\n");
-    fprintf(fsetup, "create_atoms\t1 box\n");
-    fprintf(fsetup, "mass\t1 1.0\n");
+        fsetup = fopen("lj_setup.txt", "w");
+        fprintf(fsetup, "variable\tx index 1\n");
+        fprintf(fsetup, "variable\ty index 1\n");
+        fprintf(fsetup, "variable\tz index 1\n");
+        fprintf(fsetup, "variable\txx equal %d*$x\n", lattices_dim);
+        fprintf(fsetup, "variable\tyy equal %d*$y\n", lattices_dim);
+        fprintf(fsetup, "variable\tzz equal %d*$z\n", lattices_dim);
 
-    fprintf(fsetup, "velocity\tall create 1.44 87287 loop geom\n");
+        fprintf(fsetup, "units\tlj\n");
+        fprintf(fsetup, "atom_style\tatomic\n");
 
-    fprintf(fsetup, "pair_style\tlj/cut 2.5\n");
-    fprintf(fsetup, "pair_coeff\t1 1 1.0 1.0 2.5\n");
+        fprintf(fsetup, "lattice\tfcc 0.8442\n");
+        fprintf(fsetup, "region\tbox block 0 ${xx} 0 ${yy} 0 ${zz}\n");
+        fprintf(fsetup, "create_box\t1 box\n");
+        fprintf(fsetup, "create_atoms\t1 box\n");
+        fprintf(fsetup, "mass\t1 1.0\n");
 
-    fprintf(fsetup, "neighbor\t0.3 bin\n");
-    fprintf(fsetup, "neigh_modify\tdelay 0 every 20 check no\n");
+        fprintf(fsetup, "velocity\tall create 1.44 87287 loop geom\n");
 
-    fprintf(fsetup, "fix\t1 all nve\n");
+        fprintf(fsetup, "pair_style\tlj/cut 2.5\n");
+        fprintf(fsetup, "pair_coeff\t1 1 1.0 1.0 2.5\n");
 
-    fclose(fsetup);
+        fprintf(fsetup, "neighbor\t0.3 bin\n");
+        fprintf(fsetup, "neigh_modify\tdelay 0 every 20 check no\n");
 
-    FILE *frun;
+        fprintf(fsetup, "fix\t1 all nve\n");
 
-    frun = fopen("lj_run.txt", "w");
-    fprintf(frun, "run\t%d", int(b));
+        fclose(fsetup);
 
-    fclose(frun);
+        FILE *frun;
+
+        frun = fopen("lj_run.txt", "w");
+        fprintf(frun, "run\t%d", int(b));
+
+        fclose(frun);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     return initLAMMPS();
 }

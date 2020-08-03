@@ -15,7 +15,7 @@ RABBIT_INC_LOC = ${RABBIT_INSTALL}/librabbitmq
 
 SHELL := /bin/bash
 CC     = mpic++
-CFLAGS = -Wall -I /users/sahba/wheeler-scratch/git/sprng5/include -fopenmp
+CFLAGS = -Wall -fopenmp -I /users/sahba/wheeler-scratch/git/sprng5/include
 LDFLAGS = -L/users/sahba/wheeler-scratch/git/sprng5/lib
 LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -lrabbitmq -lhpcg -llammps -lpng -ljpeg
 
@@ -28,27 +28,32 @@ lammps_runner.o: lammps_runner.h lammps_runner.c
 	module load libjpeg-9c-gcc-7.3.0-bvi5osg;\
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
+	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
 	$(CC) -Wall -I $(LAMMPS_INC_LOC) -c lammps_runner.c
 
 hpcg_runner.o: hpcg_runner.h hpcg_runner.c
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
+	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
 	$(CC) -Wall -I $(HPCG_INC_LOC) -c hpcg_runner.c
 
 amqp_producer.o: amqp_producer.h amqp_producer.c
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
+	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
 	$(CC) -Wall -I $(RABBIT_INC_LOC) -c amqp_producer.c
 
 bsp_prototype: bsp_prototype.c lammps_runner.o hpcg_runner.o amqp_producer.o
 	module load libjpeg-9c-gcc-7.3.0-bvi5osg;\
 	module load gsl-2.5-gcc-7.3.0-i7icadp;\
 	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
+	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
 	$(CC) $^ -o bsp_prototype $(CFLAGS) -I $(LAMMPS_INC_LOC) -I $(HPCG_INC_LOC) -I $(RABBIT_INC_LOC) -L$(LAMMPS_LIB_LOC) -L$(HPCG_LIB_LOC) -L$(RABBIT_LIB_LOC) $(LDFLAGS) $(LDLIBS)
 
 dependencies:
 	rm -rf include;\
 	rm -rf lib;\
+	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
 	bash build_hpcg.sh;\
 	bash build_lammps.sh
 	
