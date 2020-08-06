@@ -1,27 +1,34 @@
 #include "lammps_runner.h"
 
-LAMMPS * initLAMMPS() {
-    char *myargv[] = {strdup("lammps"), NULL};
+void * initLAMMPS(int i) {
+    char logfile[64];
+    
+    if (i < 0) i = 0;
+    sprintf(logfile, "lammps_output_%d.txt", i);
+
+    char *myargv[] = {strdup("lammps"), strdup("-screen"), strdup(logfile),  NULL};
     int myargc = sizeof(myargv) / sizeof(char*) - 1;
+    
+    char *fname = strdup("lj_setup.txt");
 
-    const char *fname = "lj_setup.txt";
-
-    LAMMPS *lammps = new LAMMPS(myargc, myargv, MPI_COMM_WORLD);
-    lammps->input->file(fname);
-
+    void * lammps = NULL;
+    lammps_open(myargc, myargv, MPI_COMM_WORLD, &lammps);
+    lammps_file(lammps, fname);
+    
     return lammps;
 }
 
-LAMMPS * setupLAMMPS(double a, double b) {
+void * setupLAMMPS(double a, double b) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if (rank == 0) {
-        printf("Setting Up Lammps\n\n");
-        printf("a: %.4f\tb: %.4f\n", a, b);
-
+        printf("\nSetting Up Lammps\n");
+        printf("Requesting %.0f Molecules for %.0f Time Steps\n", a, b);
 
         int lattices_dim = (int)ceil(cbrt(a / 4));
+
+        printf("Actual Number of Molecules Allocated: %d\tnx: %d\tny: %d\tnz: %d\n", lattices_dim * lattices_dim * lattices_dim * 4, lattices_dim, lattices_dim, lattices_dim);
 
         FILE *fsetup;
 
@@ -64,19 +71,29 @@ LAMMPS * setupLAMMPS(double a, double b) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    return initLAMMPS();
+    return initLAMMPS(0);
 }
 
-void runLAMMPS(LAMMPS *& lammps) {
-    printf("Running Lammps iterations\n\n");
+void runLAMMPS(void *& lammps) {
+    char *fname = strdup("lj_run.txt");
 
-    const char *fname = "lj_run.txt";
-
-    lammps->input->file(fname);
+    lammps_file(lammps, fname);
 
 }
 
-LAMMPS * resetLAMMPS(LAMMPS *& lammps) {
-    delete lammps;
-    return initLAMMPS();
+void * resetLAMMPS(void *& lammps, int i) {
+    lammps_close(lammps);
+    
+    return initLAMMPS(i + 1);
+}
+
+void deleteLAMMPS(void *& lammps, int i) {
+    lammps_close(lammps);
+    
+    char logfile[64];
+    
+    if (i < 0) i = 0;
+    sprintf(logfile, "lammps_output_%d.txt", i);
+    
+    remove(logfile);
 }

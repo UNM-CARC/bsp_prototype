@@ -1,16 +1,15 @@
-#include "lammps.h"
+#include "library.h"
 #include <mpi.h>
-#include "input.h"
 
 #include <math.h>
 #include <stdio.h>
 
-using namespace LAMMPS_NS;
+void * initLAMMPS(int i);
 
-LAMMPS * initLAMMPS();
+void * setupLAMMPS(double a, double b);
 
-LAMMPS * setupLAMMPS(double a, double b);
+void runLAMMPS(void *& lammps);
 
-void runLAMMPS(LAMMPS *& lammps);
+void * resetLAMMPS(void *& lammps, int i);
 
-LAMMPS * resetLAMMPS(LAMMPS *& lammps);
+void deleteLAMMPS(void *& lammps, int i);
