@@ -390,11 +390,11 @@ void calibrate_fwq(int loops, int w, gsl_rng *r, double a, double b, double cpn)
     printf("FWQ Calibrate: %.4f\n", FWQ_CALIBRATE);
 }
 
-void reset_workload(int w, int iter)
+void reset_workload(int w)
 {
     switch(w) {
         case WORKLOAD_LAMMPS:
-            lammps = resetLAMMPS(lammps, iter);
+            lammps = resetLAMMPS(lammps);
             break;
         case WORKLOAD_HPCG:
             resetHPCG(HPCG_x, HPCG_xorig, HPCG_data, HPCG_data_orig);
@@ -476,11 +476,11 @@ int init_workload(int w, gsl_rng *r, char *distribution, double a, double b)
     return 0;
 }
 
-void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b, int i )
+void cleanup_workload( int w, gsl_rng *r, char *distribution, double a, double b)
 {
     switch(w) {
         case WORKLOAD_LAMMPS:
-            deleteLAMMPS(lammps, i);
+            deleteLAMMPS(lammps);
             break;
         case WORKLOAD_IO:
             free( io_params.ary );
@@ -657,7 +657,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
             times_buffer[ i ].bend =  coll_bend;
         }
 
-        reset_workload(workload, i);
+        reset_workload(workload);
     }// end of main loop
     //freeing the bufferes used for MPI exchange operations
     if(stencil_size){
@@ -667,7 +667,7 @@ int barrier_loop(double a, double b, char * distribution, int stencil_size, int 
         free(rabbit_message);
     }
 
-    cleanup_workload(workload, r, distribution, a, b, i);
+    cleanup_workload(workload, r, distribution, a, b);
 
     return 0;
 }

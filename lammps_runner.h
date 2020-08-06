@@ -4,12 +4,12 @@
 #include <math.h>
 #include <stdio.h>
 
-void * initLAMMPS(int i);
+void * initLAMMPS();
 
 void * setupLAMMPS(double a, double b);
 
 void runLAMMPS(void *& lammps);
 
-void * resetLAMMPS(void *& lammps, int i);
+void * resetLAMMPS(void *& lammps);
 
-void deleteLAMMPS(void *& lammps, int i);
+void deleteLAMMPS(void *& lammps);
