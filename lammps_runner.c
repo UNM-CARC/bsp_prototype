@@ -2,15 +2,15 @@
 
 void * initLAMMPS() {
     // Simulate argc and argv - pass argument to disable output to screen
-    char *myargv[] = {strdup("lammps"), strdup("-screen"), strdup("none"),  NULL};
+    const char *myargv[] = {"lammps", "-screen", "none",  NULL};
     int myargc = sizeof(myargv) / sizeof(char*) - 1;
     
-    char *fname = strdup("lj_setup.txt");
+    const char *fname = "lj_setup.txt";
 
     // Initialize the Problem
     void * lammps = NULL;
-    lammps_open(myargc, myargv, MPI_COMM_WORLD, &lammps);
-    lammps_file(lammps, fname);
+    lammps_open(myargc, (char **)myargv, MPI_COMM_WORLD, &lammps);
+    lammps_file(lammps, (char *)fname);
     
     return lammps;
 }
@@ -92,8 +92,8 @@ void * setupLAMMPS(double a, double b) {
 
 // Run the Problem
 void runLAMMPS(void *& lammps) {
-    char *fname = strdup("lj_run.txt");
-    lammps_file(lammps, fname);
+    const char *fname = "lj_run.txt";
+    lammps_file(lammps, (char*)fname);
 }
 
 // Reset the Problem (Delete and then Re-Initialize)

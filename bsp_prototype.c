@@ -45,13 +45,13 @@
 #define FNAMELEN (NAME_MAX + 3)
 #endif
 
-//the header for amq send and util functions
+// Header for amq send and util functions
 #include "amqp_producer.h"
 
-//Header function for HPCG function calls
+// Header for HPCG function calls
 #include "hpcg_runner.h"
 
-// Header function for LAMMPS function calls
+// Header for LAMMPS function calls
 #include "lammps_runner.h"
 
 //Stencil Radius
@@ -398,8 +398,6 @@ void reset_workload(int w)
             break;
         case WORKLOAD_HPCG:
             resetHPCG(HPCG_x, HPCG_xorig, HPCG_data, HPCG_data_orig);
-            HPCG_x = HPCG_xorig;
-            HPCG_data = HPCG_data_orig;
             break;
         case WORKLOAD_SPMV:
             resetSPMV(HPCG_x, HPCG_b);
