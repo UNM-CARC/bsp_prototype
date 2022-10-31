@@ -14,10 +14,10 @@ RABBIT_LIB_LOC = ${RABBIT_INSTALL}/build/librabbitmq
 RABBIT_INC_LOC = ${RABBIT_INSTALL}/librabbitmq
 
 SHELL := /bin/bash
-CC     = mpic++
-CFLAGS = -Wall -fopenmp -I /users/sahba/wheeler-scratch/git/sprng5/include
-LDFLAGS = -L/users/sahba/wheeler-scratch/git/sprng5/lib
-LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -lrabbitmq -lhpcg -llammps -lpng -ljpeg
+CC     = mpicxx
+CFLAGS = -Wall -fopenmp -I /users/sahba/wheeler-scratch/git/sprng5/include -std=c++11
+LDFLAGS = -L/users/sahba/wheeler-scratch/git/sprng5/lib -L/opt/spack/opt/spack/linux-centos7-nehalem/gcc-4.8.5/openmpi-3.1.6-t4zsebgsrlxtvxbmakv564xca7zstxed/lib -L/opt/spack/opt/spack/linux-centos7-nehalem/gcc-4.8.5/libjpeg-9d-v2zczfvlzu7ynnth6bmrgta5wtxtuorb/lib -L/opt/spack/opt/spack/linux-centos7-nehalem/gcc-11.2.0/gsl-2.7-gpnkja2prxqy3nyobnpo3gvw7d6hcpgn/lib -L/opt/spack/opt/spack/linux-centos7-nehalem/gcc-4.8.5/gcc-11.2.0-otgtja25rdtbzkdxclktmjicnwaqu7wv/lib64 -L/opt/spack/opt/spack/linux-centos7-nehalem/gcc-4.8.5/gcc-11.2.0-otgtja25rdtbzkdxclktmjicnwaqu7wv/lib
+LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -ldl -lrabbitmq -lhpcg -llammps -lpng -ljpeg
 
 .PHONY: clean
 	.PHONY: default
@@ -25,35 +25,36 @@ LDLIBS = -lgmp -lgsl -lgslcblas -lm -lsprng -lrabbitmq -lhpcg -llammps -lpng -lj
 default: bsp_prototype
 
 lammps_runner.o: lammps_runner.h lammps_runner.c
-	module load libjpeg-9c-gcc-7.3.0-bvi5osg;\
-	module load gsl-2.5-gcc-7.3.0-i7icadp;\
-	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
-	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
+	module load gcc/11.2.0-otgt;\
+	module load gsl/2.7-gpnk;\
+	module load libjpeg/9d-v2zc;\
+	module load openmpi/3.1.6-t4zs;\
 	$(CC) -Wall -I $(LAMMPS_INC_LOC) -c lammps_runner.c
 
 hpcg_runner.o: hpcg_runner.h hpcg_runner.c
-	module load gsl-2.5-gcc-7.3.0-i7icadp;\
-	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
-	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
+	module load gcc/11.2.0-otgt;\
+	module load gsl/2.7-gpnk;\
+	module load openmpi/3.1.6-t4zs;\
 	$(CC) -Wall -I $(HPCG_INC_LOC) -c hpcg_runner.c
 
 amqp_producer.o: amqp_producer.h amqp_producer.c
-	module load gsl-2.5-gcc-7.3.0-i7icadp;\
-	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
-	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
+	module load gcc/11.2.0-otgt;\
+	module load gsl/2.7-gpnk;\
+	module load openmpi/3.1.6-t4zs;\
 	$(CC) -Wall -I $(RABBIT_INC_LOC) -c amqp_producer.c
 
 bsp_prototype: bsp_prototype.c lammps_runner.o hpcg_runner.o amqp_producer.o
-	module load libjpeg-9c-gcc-7.3.0-bvi5osg;\
-	module load gsl-2.5-gcc-7.3.0-i7icadp;\
-	module load openmpi-3.1.3-gcc-7.3.0-6javta3;\
-	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
+	module load gcc/11.2.0-otgt;\
+	module load gsl/2.7-gpnk;\
+	module load libjpeg/9d-v2zc;\
+	module load openmpi/3.1.6-t4zs;\
 	$(CC) $^ -o bsp_prototype $(CFLAGS) -I $(LAMMPS_INC_LOC) -I $(HPCG_INC_LOC) -I $(RABBIT_INC_LOC) -L$(LAMMPS_LIB_LOC) -L$(HPCG_LIB_LOC) -L$(RABBIT_LIB_LOC) $(LDFLAGS) $(LDLIBS)
 
 dependencies:
 	rm -rf include;\
 	rm -rf lib;\
-	module load gcc-7.3.0-gcc-7.2.0-rg5awu4;\
+	module load gcc/11.2.0-otgt;\
+	module load gsl/2.7-gpnk;\
 	bash build_hpcg.sh;\
 	bash build_lammps.sh
 	

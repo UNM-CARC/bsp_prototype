@@ -1,9 +1,10 @@
 #!/bin/bash
 set -x
 
-module load gsl-2.5-gcc-7.3.0-i7icadp
-module load openmpi-3.1.3-gcc-7.3.0-6javta3
-module load cmake-3.15.4-gcc-7.3.0-uhxlwfq
+module load gcc/11.2.0-otgt
+module load gsl/2.7-gpnk
+module load openmpi/3.1.6-t4zs
+module load cmake/3.22.2-c2dw
 
 git clone https://github.com/lammps/lammps.git
 
@@ -14,8 +15,8 @@ mkdir -p build
 
 cd build
 
-cmake ../cmake
-cmake --build .
+cmake -DLAMMPS_LIB_MPI=ON ../cmake
+cmake --build . -j
 
 cd ../..
 

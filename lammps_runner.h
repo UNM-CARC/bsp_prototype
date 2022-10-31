@@ -1,3 +1,5 @@
+#define LAMMPS_LIB_MPI
+
 #include "library.h"
 #include <mpi.h>
 
